@@ -23,7 +23,7 @@ object GridAreaType extends Enumeration {
   implicit val decoder: Decoder[Value] = Decoder.decodeEnumeration(this)
   implicit val encoder: Encoder[Value] = Encoder.encodeEnumeration(this)
 
-  val LOCAL, REGIONAL = Value
+  val LOCAL, REGIONAL, GEA, BEG = Value
 }
 
 object GridAllocationType extends Enumeration {
@@ -67,7 +67,7 @@ object RegisterService {
 
   case class Contact(owner: String, street: String, streetNumber: String, city: String, zip: String, email: String, web: Option[String], phone: Option[String])
 
-  case class AccountInfo(iban: String, owner: String, sepa: Boolean)
+  case class AccountInfo(iban: String, owner: String, sepa: Boolean, bankName: String)
 
   case class BusinessInfo(legal: EegLegal, businessNr: String, taxNumber: String, vatNumber: String, settlementInterval: EegSettlement)
 
@@ -122,7 +122,7 @@ object RegisterService {
           case RegisterEeg(eeg, groups, replyTo) => {
             val userExists = keycloakClient.checkUserAlreadyExist(eeg.user.email)
             val request = RegisterEegRequest(eeg.rcNumber.toUpperCase(), eeg.communityId, eeg.name, eeg.description,
-              eeg.accountInfo.iban, eeg.accountInfo.owner, eeg.accountInfo.sepa,
+              eeg.accountInfo.iban, eeg.accountInfo.owner, eeg.accountInfo.sepa, eeg.accountInfo.bankName,
               (eeg.businessInfo.legal match {
                 case EegLegalType.verein => RegisterEegRequest.EEG_LEGAL.verein
                 case EegLegalType.gesellschaft => RegisterEegRequest.EEG_LEGAL.gesellschaft
@@ -137,6 +137,8 @@ object RegisterService {
                 case _ => RegisterEegRequest.EEG_SETTELMENT.ANNUAL
               }), eeg.grid.id, eeg.grid.name, (eeg.grid.area match {
                 case GridAreaType.LOCAL => RegisterEegRequest.GRID_AREA.LOCAL
+                case GridAreaType.BEG => RegisterEegRequest.GRID_AREA.BEG
+                case GridAreaType.GEA => RegisterEegRequest.GRID_AREA.GEA
                 case _ => RegisterEegRequest.GRID_AREA.REGIONAL
               }), (eeg.grid.allocation match {
                 case GridAllocationType.DYNAMIC => RegisterEegRequest.GRID_ALLOCATION.DYNAMIC
