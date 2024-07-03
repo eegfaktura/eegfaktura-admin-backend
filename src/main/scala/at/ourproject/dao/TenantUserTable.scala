@@ -1,4 +1,4 @@
-package at.ourproject.dao
+/*package at.ourproject.dao
 
 import slick.lifted.ProvenShape
 
@@ -23,4 +23,4 @@ trait TenantUserTable { this: Db =>
   }
 
   val tenantUsers = TableQuery[TenantUsers]
-}
+}*/

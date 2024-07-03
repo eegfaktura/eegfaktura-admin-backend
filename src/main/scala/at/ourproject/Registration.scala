@@ -2,23 +2,33 @@ package at.ourproject
 
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
+import akka.http.scaladsl.server.Directives._
+import at.ourproject.dao.{Dao, DbInstance}
 import at.ourproject.keycloak.KeycloakClient
-import at.ourproject.routes.RegistrationRoutes
+import at.ourproject.routes.{EegRoutes, RegistrationRoutes}
 import at.ourproject.services.RegisterService
 import org.slf4j.{Logger, LoggerFactory}
+
+import scala.concurrent.ExecutionContext
 
 object Registration extends App {
 
   implicit val log: Logger = LoggerFactory.getLogger(getClass)
-  private val keycloakConfig = Config.config()
+  private val keycloakConfig = KeycloakConfig.keycloakAdminConfig
   val keycloakClient = KeycloakClient(keycloakConfig)
+
 
   val rootBehavior = Behaviors.setup[Nothing] { context =>
 
+    val daos = new Dao with DbInstance {
+      override implicit def executionContext: ExecutionContext = context.executionContext
+    }
+
     val node = context.spawnAnonymous(RegisterService(keycloakClient))
 
-    val router = new RegistrationRoutes(node)(context.system, context.executionContext)
-    HttpServer.startHttpServer(router.route)(context.system)
+    val regRouter = new RegistrationRoutes(node)(context.system, context.executionContext)
+    val eegRouter = new EegRoutes(daos, node)(context.system, context.executionContext)
+    HttpServer.startHttpServer(regRouter.route ~ eegRouter.route)(context.system)
 
     Behaviors.empty
   }

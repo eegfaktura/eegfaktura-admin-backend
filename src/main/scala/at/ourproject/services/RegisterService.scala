@@ -5,14 +5,12 @@ import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
 import akka.grpc.GrpcClientSettings
 import akka.util.Timeout
 import at.energydash.admin.{RegisterPontonRequest, RegisterPontonServiceClient}
-import at.ourproject.dao.{Db, KeycloakUser, SlickTenantUserRepository}
+import at.ourproject.dao.Db
 import at.ourproject.keycloak.KeycloakClient
 import at.ourproject.keycloak.KeycloakClient.User
 import at.ourproject.register.{RegisterEegRequest, RegisterEegServiceClient}
 import io.circe.{Decoder, Encoder}
 
-import java.time.LocalDateTime
-import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -75,7 +73,7 @@ object RegisterService {
 
   case class UserInfo(username: String, password: String, firstname: String, lastname: String, email: String)
 
-  case class Eeg(rcNumber: String, communityId: String, name: String, description: String, online: Boolean,
+  case class Eeg(tenant: String, rcNumber: String, communityId: String, name: String, description: String, online: Boolean,
                  accountInfo: AccountInfo, businessInfo: BusinessInfo, grid: Grid, contact: Contact, pontonInfo: PontonInfo, user: UserInfo)
 
   case class AutorizedUser(firstname: String, lastname: String, email: String, tenant: String, roles: Option[List[String]])
@@ -115,13 +113,13 @@ object RegisterService {
       val eegClient = RegisterEegServiceClient(GrpcClientSettings.fromConfig("register.RegisterEegService"))
       val pontonClient = RegisterPontonServiceClient(GrpcClientSettings.fromConfig("register.RegisterPontonService"))
 
-      val userRepo = new SlickTenantUserRepository(dbConfig)
+//      val userRepo = new SlickTenantUserRepository(dbConfig)
 
       Behaviors.receiveMessage { message => {
         message match {
           case RegisterEeg(eeg, groups, replyTo) => {
             val userExists = keycloakClient.checkUserAlreadyExist(eeg.user.email)
-            val request = RegisterEegRequest(eeg.rcNumber.toUpperCase(), eeg.communityId, eeg.name, eeg.description,
+            val request = RegisterEegRequest(eeg.tenant, eeg.rcNumber.toUpperCase(), eeg.communityId, eeg.name, eeg.description,
               eeg.accountInfo.iban, eeg.accountInfo.owner, eeg.accountInfo.sepa, eeg.accountInfo.bankName,
               (eeg.businessInfo.legal match {
                 case EegLegalType.verein => RegisterEegRequest.EEG_LEGAL.verein
@@ -183,13 +181,13 @@ object RegisterService {
 
           case RegisterParticipant(tenant, firstname, lastname, email) =>
 
-            userRepo.create(KeycloakUser(id = UUID.randomUUID(),
-              tenant = tenant,
-              username = None,
-              firtsname = firstname,
-              lastname = lastname,
-              email = email,
-              invitedAt = LocalDateTime.now(), createdAt = LocalDateTime.now, status = 0))
+//            userRepo.create(KeycloakUser(id = UUID.randomUUID(),
+//              tenant = tenant,
+//              username = None,
+//              firtsname = firstname,
+//              lastname = lastname,
+//              email = email,
+//              invitedAt = LocalDateTime.now(), createdAt = LocalDateTime.now, status = 0))
 
           case LookupUsersRequest(tenant, replyTo) =>
             replyTo ! LookupUsersResponse(

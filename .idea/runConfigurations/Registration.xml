@@ -1,0 +1,15 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Registration" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="at.ourproject.Registration" />
+    <module name="eegfaktura-registration" />
+    <extension name="coverage">
+      <pattern>
+        <option name="PATTERN" value="at.ourproject.at.ourproject.keycloak.*" />
+        <option name="ENABLED" value="false" />
+      </pattern>
+    </extension>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

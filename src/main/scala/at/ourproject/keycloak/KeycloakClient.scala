@@ -1,6 +1,6 @@
 package at.ourproject.keycloak
 
-import at.ourproject.Config.Configuration
+import at.ourproject.KeycloakConfig.Configuration
 import at.ourproject.keycloak.KeycloakClient.User
 import org.keycloak.OAuth2Constants
 import org.keycloak.admin.client.resource.{RealmResource, UsersResource}
@@ -128,11 +128,11 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       try {
 //        val userResources = users.searchByAttributes(s"tenantId:${tenant}")
         val userResources = users.list()
-        println(s"userResponse ${userResources.size()}")
-        println(s"userResponse ${userResources.get(0)}")
         if (userResources == null) {
           throw new RuntimeException("No valid user found")
         }
+        println(s"userResponse ${userResources.size()}")
+        println(s"userResponse ${userResources.get(0)}")
         userResources.asScala.toList
       } catch {
         case e: Exception => throw new RuntimeException(s"No valid user found with $tenant: ${e.getMessage}")

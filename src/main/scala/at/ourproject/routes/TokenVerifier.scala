@@ -8,20 +8,24 @@ import akka.http.scaladsl.server.Directives.{extractCredentials, onComplete, pro
 import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive1}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.Materializer
+import at.ourproject.KeycloakConfig
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
-import org.keycloak.TokenVerifier
+import io.circe.parser._
 import org.keycloak.adapters.{KeycloakDeployment, KeycloakDeploymentBuilder}
 import org.keycloak.jose.jws.AlgorithmType
 import org.keycloak.representations.AccessToken
+import org.keycloak.{TokenVerifier => KCTokenVerifier}
 import org.slf4j.Logger
 
+import java.io.InputStream
 import java.math.BigInteger
 import java.security.spec.RSAPublicKeySpec
 import java.security.{KeyFactory, PublicKey}
 import java.util.Base64
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Success
+
 
 trait TokenVerifier {
 
@@ -92,12 +96,28 @@ trait TokenVerifier {
         reject(AuthorizationFailedRejection)
     }
 
+//  def keycloakConfig: InputStream = {
+//    val jsonString: String = scala.io.Source.fromFile(AppConfig.keycloakFile).mkString
+//    val parseResult: Either[ParsingFailure, Json] = parse {
+//      jsonString
+//    }
+//    parseResult match {
+//      case Left(parsingError) =>
+//        throw new IllegalArgumentException(s"Invalid JSON object: ${parsingError.message}")
+//      case Right(json) =>
+//        new ByteArrayInputStream((json \\ "admin").head.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name))
+//    }
+//  }
+  def keycloakConfig: InputStream = KeycloakConfig.keycloakConfigStream
+
+//  val keycloakDeployment: KeycloakDeployment =
+//    KeycloakDeploymentBuilder.build(getClass.getResourceAsStream("/keycloak.json"))
   val keycloakDeployment: KeycloakDeployment =
-    KeycloakDeploymentBuilder.build(getClass.getResourceAsStream("/keycloak.json"))
+    KeycloakDeploymentBuilder.build(keycloakConfig)
 
 
   def verifyToken(token: String): Future[Option[AccessToken]] = {
-    val tokenVerifier = TokenVerifier.create(token, classOf[AccessToken]) //.realmUrl(keycloakDeployment.getRealmInfoUrl)
+    val tokenVerifier = KCTokenVerifier.create(token, classOf[AccessToken]) //.realmUrl(keycloakDeployment.getRealmInfoUrl)
     for {
       publicKey <- publicKeys.map(_.get(tokenVerifier.getHeader.getKeyId))
     } yield publicKey match {

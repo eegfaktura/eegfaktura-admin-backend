@@ -1,4 +1,4 @@
-package at.ourproject.dao
+/*package at.ourproject.dao
 
 import slick.basic.DatabaseConfig
 import slick.jdbc.JdbcProfile
@@ -24,10 +24,10 @@ object TenantUserRepository {
 class SlickTenantUserRepository(databaseConfig: DatabaseConfig[JdbcProfile])(implicit ec: ExecutionContext)
   extends TenantUserRepository with Db with TenantUserTable {
 
-  override val db = databaseConfig.db
-  override val config = databaseConfig
+    override val db = databaseConfig.db
+    override val config = databaseConfig
 
-  import config.profile.api._
+    import config.profile.api._
 
   override def byTenant(tenant: String): Future[Option[KeycloakUser]] = {
     val q = tenantUsers.filter(_.tenant === tenant).take(1)
@@ -44,3 +44,4 @@ class SlickTenantUserRepository(databaseConfig: DatabaseConfig[JdbcProfile])(imp
   }
 }
 
+*/
