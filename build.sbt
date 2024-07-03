@@ -1,11 +1,11 @@
 import com.typesafe.sbt.packager.docker.*
 import Dependencies.*
 
-ThisBuild / version := "0.0.3-SNAPSHOT"
+ThisBuild / version := "0.2.0-SNAPSHOT"
 
 ThisBuild / scalaVersion := "2.13.11"
 
-val appVersion      = "0.0.5"
+val appVersion      = "0.2.2"
 
 lazy val root = (project in file("."))
   .enablePlugins(AkkaGrpcPlugin)
