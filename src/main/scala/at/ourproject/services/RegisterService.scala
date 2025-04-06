@@ -51,17 +51,27 @@ object EegSettlementType extends Enumeration {
   val ANNUAL, BIANNUAL, QUARTER, MONTHLY = Value
 }
 
+object PontonCommType extends Enumeration {
+  type PontonComm = Value
+
+  implicit val decoder: Decoder[Value] = Decoder.decodeEnumeration(this)
+  implicit val encoder: Encoder[Value] = Encoder.encodeEnumeration(this)
+
+  val KEP, MAIL = Value
+}
+
 object RegisterService {
 
   import at.ourproject.services.EegLegalType.EegLegal
   import at.ourproject.services.EegSettlementType.EegSettlement
   import at.ourproject.services.GridAllocationType.GridAllocation
   import at.ourproject.services.GridAreaType.GridArea
+  import at.ourproject.services.PontonCommType.PontonComm
 
   trait Command
-  case class PontonRegInfo(tenant: String, username: String, password: String, domain: String)
+  case class PontonInfo(username: String, password: String, domain: String, host: Option[String], port: Option[Int], pontonCommType: PontonComm)
 
-  case class PontonInfo(username: String, password: String, domain: String, host: String, port: Int)
+  case class PontonRegInfo(tenant: String, pontonInfo: PontonInfo)
 
   case class Contact(owner: String, street: String, streetNumber: String, city: String, zip: String, email: String, web: Option[String], phone: Option[String])
 
@@ -93,7 +103,7 @@ object RegisterService {
   case class AddTenantToUser(tenant: String, user: String, replyTo: ActorRef[Command]) extends Command
   case class AddTenantToUserResponse(status: Int) extends Command
 
-  case class PontonRegister(tenant: String, username: String, password: String, domain: String, replyTo: ActorRef[Command]) extends Command
+  case class PontonRegister(tenant: String, pontonInfo: PontonInfo, replyTo: ActorRef[Command]) extends Command
   case class PontonRegisterResponse(status: Int, message: String) extends Command
 
   def apply(keycloakClient: KeycloakClient): Behavior[Command] = {
@@ -208,8 +218,12 @@ object RegisterService {
               case _ => replyTo ! AddTenantToUserResponse(500)
             }
 
-          case PontonRegister(tenant, username, password, domain, replyTo) =>
-            val pontonRequest = RegisterPontonRequest(tenant.toUpperCase(), username, password, domain)
+          case PontonRegister(tenant, pontonInfo, replyTo) =>
+            val pontonRequest = RegisterPontonRequest(tenant.toUpperCase(),
+              pontonInfo.username,
+              pontonInfo.password,
+              pontonInfo.domain,
+              pontonInfo.pontonCommType.toString)
 
             pontonClient.register(pontonRequest).onComplete {
               case Success(value) if value.status == 200 => replyTo ! PontonRegisterResponse(200, value.message)

@@ -5,7 +5,7 @@ import slick.jdbc.JdbcProfile
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class Eeg(tenant: Option[String], name: String, description: String, area: String, legal: String, gridOperatorCode: String, gridOperatorId: String, contactPerson: String, allocationMode: String)
+case class Eeg(tenant: Option[String], name: String, description: Option[String], area: String, legal: String, gridOperatorCode: String, gridOperatorId: String, contactPerson: Option[String], allocationMode: String)
 trait EegRepositoryComponent {
   def getAll() : Future[Seq[Eeg]]
 

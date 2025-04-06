@@ -1,11 +1,11 @@
-import com.typesafe.sbt.packager.docker.*
 import Dependencies.*
+import com.typesafe.sbt.packager.docker.{Cmd, DockerChmodType, ExecCmd}
 
 ThisBuild / version := "0.2.0-SNAPSHOT"
 
-ThisBuild / scalaVersion := "2.13.11"
+ThisBuild / scalaVersion := "2.13.9"
 
-val appVersion      = "0.2.2"
+val appVersion      = "0.2.4"
 
 lazy val root = (project in file("."))
   .enablePlugins(AkkaGrpcPlugin)
@@ -13,7 +13,7 @@ lazy val root = (project in file("."))
   .settings(dockerSettings)
   .settings(
     name := "eegfaktura-registration",
-
+    resolvers += "Akka library repository" at "https://repo.akka.io/maven",
     libraryDependencies ++= Seq(
         keycloakCore, keycloakAdminClient, keycloakAdapter,
         sttpClient3,
@@ -24,9 +24,7 @@ lazy val root = (project in file("."))
     ),
 
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.2.14",
-      "com.typesafe.akka" %% "akka-stream-testkit" % AkkaVersion,
-      "com.typesafe.akka" %% "akka-actor-testkit-typed" % AkkaVersion,
+      scalaTest, streamTestkit, akkaTestkit,
     ).map(_ % Test),
 
   )

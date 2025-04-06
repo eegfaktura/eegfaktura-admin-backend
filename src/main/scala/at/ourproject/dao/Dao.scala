@@ -7,4 +7,5 @@ trait Dao extends Repositories {
 
   implicit def executionContext: ExecutionContext
   def eegRepository: EegRepositoryComponent = EegRepository(this)
+  def participantRepository: ParticipantsRepository = ParticipantsRepository(this)
 }

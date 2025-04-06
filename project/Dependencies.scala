@@ -1,4 +1,4 @@
-import sbt._
+import sbt.*
 
 object Dependencies {
 
@@ -9,10 +9,10 @@ object Dependencies {
   private val monovoreDeclineVersion = "2.4.1"
   private val awsUtilsVersion = "0.1.92"
   private val sttpClient3Version = "3.8.15"
-  val AkkaVersion = "2.7.0"
-  private val AkkaHttpVersion = "10.5.2"
+  private val AkkaVersion = "2.9.3"
+  private val AkkaHttpVersion = "10.6.3"
   private val CirceVersion = "0.14.3"
-  private val SlickVersion = "3.4.1"
+  private val SlickVersion = "3.5.1"
 
 
   lazy val authUtils = "uk.gov.nationalarchives" %% "tdr-auth-utils" % "0.0.139"
@@ -24,7 +24,6 @@ object Dependencies {
   lazy val decline = "com.monovore" %% "decline" % monovoreDeclineVersion
   lazy val declineEffect = "com.monovore" %% "decline-effect" % monovoreDeclineVersion
   lazy val graphqlClient = "uk.gov.nationalarchives" %% "tdr-graphql-client" % "0.0.110"
-  lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.2.16"
   lazy val scalaCsv = "com.github.tototoshi" %% "scala-csv" % "1.3.10"
   lazy val log4cats = "org.typelevel" %% "log4cats-core" % log4CatsVersion
   lazy val log4catsSlf4j = "org.typelevel" %% "log4cats-slf4j" % log4CatsVersion
@@ -50,4 +49,7 @@ object Dependencies {
 //  "org.postgresql" % "postgresql" % "42.2.5"
 
   lazy val slickTestkit = "com.typesafe.slick" %% "slick-testkit" % SlickVersion
+  lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.2.16"
+  lazy val streamTestkit = "com.typesafe.akka" %% "akka-stream-testkit" % AkkaVersion
+  lazy val akkaTestkit = "com.typesafe.akka" %% "akka-actor-testkit-typed" % AkkaVersion
 }
