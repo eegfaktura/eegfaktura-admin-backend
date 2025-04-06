@@ -42,9 +42,9 @@ class RegistrationRoutes(node: ActorRef[RegisterService.Command])(implicit val s
             path("ponton") {
               pathEndOrSingleSlash {
                 post {
-                  entity(as[PontonRegInfo]) { pontonInfo =>
+                  entity(as[PontonRegInfo]) { pontonRegInfo =>
                     val processFuture: Future[RegisterService.PontonRegisterResponse] = node.ask(
-                      ref => RegisterService.PontonRegister(pontonInfo.tenant, pontonInfo.username, pontonInfo.password, pontonInfo.domain, ref)
+                      ref => RegisterService.PontonRegister(pontonRegInfo.tenant, pontonRegInfo.pontonInfo, ref)
                     )(timeout, scheduler).mapTo[RegisterService.PontonRegisterResponse]
                     onSuccess(processFuture) { res =>
                       complete(res)

@@ -25,7 +25,14 @@ class EegRoutes (daos: Dao, node: ActorRef[RegisterService.Command])(implicit va
             complete(daos.eegRepository.getAll())
             //              }
           }
-        }
+        } ~
+          path("participants") {
+            get {
+              parameters("tenant") { tenant =>
+                complete(daos.participantRepository.getFullParticipantByTenant(tenant))
+              }
+            }
+          }
       }
   }
 
