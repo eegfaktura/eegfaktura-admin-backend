@@ -2,6 +2,7 @@ package at.ourproject.routes
 
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.{ActorRef, ActorSystem, Scheduler}
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.{Materializer, SystemMaterializer}
@@ -21,7 +22,7 @@ class RegistrationRoutes(node: ActorRef[RegisterService.Command])(implicit val s
 
   override val log: Logger = system.log
 
-  val registrationRoutes = {
+  private val registrationRoutes = {
     concat(
       pathPrefix("eeg") {
         authorize { token =>
@@ -29,11 +30,13 @@ class RegistrationRoutes(node: ActorRef[RegisterService.Command])(implicit val s
             pathEndOrSingleSlash {
               post {
                 entity(as[Eeg]) { eeg =>
-                  val processFuture: Future[RegisterService.EegRegisterd] = node.ask(
+                  val processFuture: Future[RegisterService.ResponseCommand] = node.ask(
                     ref => RegisterService.RegisterEeg(eeg, List("EEG_ADMIN", "EEG_OWNER"), ref)
-                  )(timeout, scheduler).mapTo[RegisterService.EegRegisterd]
-                  onSuccess(processFuture) { res =>
-                    complete(res)
+                  )(timeout, scheduler).mapTo[RegisterService.ResponseCommand]
+                  onSuccess(processFuture) {
+                    case res: RegisterService.EegRegistered => complete(res)
+                    case err: RegisterService.EegRegisterError => complete(StatusCodes.BadRequest, err)
+                    case _ => complete(StatusCodes.InternalServerError)
                   }
                 }
               }
@@ -44,7 +47,7 @@ class RegistrationRoutes(node: ActorRef[RegisterService.Command])(implicit val s
                 post {
                   entity(as[PontonRegInfo]) { pontonRegInfo =>
                     val processFuture: Future[RegisterService.PontonRegisterResponse] = node.ask(
-                      ref => RegisterService.PontonRegister(pontonRegInfo.tenant, pontonRegInfo.pontonInfo, ref)
+                      ref => RegisterService.PontonRegister(pontonRegInfo.tenant, pontonRegInfo.rcNumber, pontonRegInfo.pontonInfo, ref)
                     )(timeout, scheduler).mapTo[RegisterService.PontonRegisterResponse]
                     onSuccess(processFuture) { res =>
                       complete(res)

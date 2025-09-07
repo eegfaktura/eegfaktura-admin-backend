@@ -4,9 +4,10 @@ object Dependencies {
 
   private val githubPureConfigVersion = "0.17.4"
   private val keycloakVersion = "22.0.5"
+//  private val keycloakVersion = "24.0.2"
   private val log4CatsVersion = "2.6.0"
   private val mockitoScalaVersion = "1.17.14"
-  private val monovoreDeclineVersion = "2.4.1"
+  private val monovoreDeclineVersion = "2.5.0"
   private val awsUtilsVersion = "0.1.92"
   private val sttpClient3Version = "3.8.15"
   private val AkkaVersion = "2.9.3"
@@ -23,13 +24,15 @@ object Dependencies {
   lazy val catsEffect = "org.typelevel" %% "cats-effect" % "3.5.0"
   lazy val decline = "com.monovore" %% "decline" % monovoreDeclineVersion
   lazy val declineEffect = "com.monovore" %% "decline-effect" % monovoreDeclineVersion
-  lazy val graphqlClient = "uk.gov.nationalarchives" %% "tdr-graphql-client" % "0.0.110"
+  lazy val graphqlClient = "uk.gov.nationalarchives" %% "tdr-graphql-client" % "0.0.240"
   lazy val scalaCsv = "com.github.tototoshi" %% "scala-csv" % "1.3.10"
   lazy val log4cats = "org.typelevel" %% "log4cats-core" % log4CatsVersion
   lazy val log4catsSlf4j = "org.typelevel" %% "log4cats-slf4j" % log4CatsVersion
   lazy val pureConfig = "com.github.pureconfig" %% "pureconfig" % githubPureConfigVersion
   lazy val pureConfigCatsEffect = "com.github.pureconfig" %% "pureconfig-cats-effect" % githubPureConfigVersion
-  lazy val slf4j = "org.slf4j" % "slf4j-simple" % "2.0.7"
+  lazy val slf4j = "org.slf4j" % "slf4j-simple" % "2.0.17"
+  lazy val scalaLogging = "com.typesafe.scala-logging" %% "scala-logging" % "3.9.5"
+  lazy val logback = "ch.qos.logback" % "logback-classic" % "1.5.18"
   lazy val mockitoScala = "org.mockito" %% "mockito-scala" % mockitoScalaVersion
   lazy val mockitoScalaTest = "org.mockito" %% "mockito-scala-scalatest" % mockitoScalaVersion
   lazy val keycloakCore = "org.keycloak" % "keycloak-core" % keycloakVersion exclude("com.fasterxml.jackson.core", "jackson-databind")
