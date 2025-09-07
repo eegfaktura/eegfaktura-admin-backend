@@ -10,6 +10,7 @@ case class EegParticipant (id: String, tenant: String, firstName: String, lastNa
 
 trait EegParticipantsRepositoryComponent {
   def getByTenant(tenant: String): Future[Seq[EegParticipant]]
+  def getById(id: String): Future[EegParticipant]
   def getFullParticipantByTenant(tenant: String): Future[Seq[EegParticipant]]
 }
 
@@ -23,10 +24,24 @@ class ParticipantsRepository(db: Database, p: JdbcProfile)(implicit ec: Executio
 
   override def getByTenant(tenant: String): Future[Seq[EegParticipant]] = db.run(participants.filter(_.tenant === tenant).result)
 
+  override def getById(id: String): Future[EegParticipant] = {
+    val innerJoin = for {
+      p <- participants if p.id === id
+      m <- meters if p.id === m.participantId
+    } yield (p, m)
+
+    db.run(innerJoin.result).map{
+      dataTuples =>
+        val grouped = dataTuples.groupBy(_._1.id)
+        grouped.map {
+          case (r, tuples) =>
+            var (e, _) = tuples.head
+            EegParticipant(e.id, e.tenant, e.firstName, e.lastName, e.businessRole, e.status, tuples.map(_._2).filter(m => m.participantId == e.id))
+        }.head
+    }
+  }
 
   override def getFullParticipantByTenant(tenant: String): Future[Seq[EegParticipant]] = {
-//    val q = (participants filter (_.tenant === tenant) joinLeft meters on (_.tenant === _.tenant))
-
     val innerJoin = for {
       p <- participants if p.tenant === tenant
       m <- meters if p.tenant === m.tenant
@@ -34,16 +49,13 @@ class ParticipantsRepository(db: Database, p: JdbcProfile)(implicit ec: Executio
 
     db.run(innerJoin.result).map {
       dataTuples =>
-        val grouped = dataTuples.groupBy(_._1)
+        val grouped = dataTuples.groupBy(_._1.id)
         grouped.map {
-          case (r, rr) => EegParticipant(r.id, r.tenant, r.firstName, r.lastName, r.businessRole, r.status, rr.map(_._2))
+          case (r, tuples) =>
+          var (e, _) = tuples.head
+            EegParticipant(e.id, e.tenant, e.firstName, e.lastName, e.businessRole, e.status, tuples.map(_._2).filter(m => m.participantId == e.id))
         }.toSeq
     }
-
-//    val q = (participants filter (_.tenant === tenant) join meters) on (_.tenant === _.tenant)
-//    db.run(q.result).map(d => d.map(_._1).toSeq)
-//    val q = (meters filter (_.tenant === tenant))
-//    db.run(q.result).map(_.map(a => new EegParticipant(a.tenant, a.meteringPoint, "", "", "")))
   }
 
 }

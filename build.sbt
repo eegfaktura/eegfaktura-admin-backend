@@ -1,11 +1,11 @@
 import Dependencies.*
 import com.typesafe.sbt.packager.docker.{Cmd, DockerChmodType, ExecCmd}
 
-ThisBuild / version := "0.2.0-SNAPSHOT"
+ThisBuild / version := "0.2.7-SNAPSHOT"
 
 ThisBuild / scalaVersion := "2.13.9"
 
-val appVersion      = "0.2.4"
+val appVersion      = "0.2.8"
 
 lazy val root = (project in file("."))
   .enablePlugins(AkkaGrpcPlugin)
@@ -17,7 +17,7 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
         keycloakCore, keycloakAdminClient, keycloakAdapter,
         sttpClient3,
-        slf4j,
+        /*slf4j,*/ scalaLogging, logback,
         akka, akkaStream, akkaHttp,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
         slick, slickHikaricp, postgresLib
@@ -36,7 +36,8 @@ lazy val dockerSettings = Seq(
   dockerBaseImage := "openjdk:17",
   dockerRepository := Some("ghcr.io"),
   dockerUsername := Some("vfeeg-development"),
-  //  dockerUpdateLatest := true,
+//  dockerUsername := Some("eegfaktura"),
+  dockerUpdateLatest := true,
   dockerExposedVolumes := Seq("/conf"),
   dockerExposedPorts := Seq(8085),
   dockerCommands := dockerCommands.value.filterNot {
