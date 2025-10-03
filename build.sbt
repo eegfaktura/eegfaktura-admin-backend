@@ -5,7 +5,7 @@ ThisBuild / version := "0.2.7-SNAPSHOT"
 
 ThisBuild / scalaVersion := "2.13.9"
 
-val appVersion      = "0.2.8"
+val dockerVersion      = "0.2.9"
 
 lazy val root = (project in file("."))
   .enablePlugins(AkkaGrpcPlugin)
@@ -30,13 +30,15 @@ lazy val root = (project in file("."))
   )
 
 lazy val dockerSettings = Seq(
-  Docker / packageName := "eeg-registration-backend",
-  Docker / maintainer := "vfeeg <vfeeg.org>",
-  Docker / version := appVersion,
+//  Docker / packageName := "eeg-registration-backend",
+//  Docker / maintainer := "vfeeg <vfeeg.org>",
+//  Docker / version := appVersion,
+
   dockerBaseImage := "openjdk:17",
   dockerRepository := Some("ghcr.io"),
   dockerUsername := Some("vfeeg-development"),
-//  dockerUsername := Some("eegfaktura"),
+  packageName := "eeg-registration-backend",
+  maintainer := "vfeeg <vfeeg.org>",
   dockerUpdateLatest := true,
   dockerExposedVolumes := Seq("/conf"),
   dockerExposedPorts := Seq(8085),
@@ -46,8 +48,18 @@ lazy val dockerSettings = Seq(
   },
   dockerCommands ++= Seq(
     //    Cmd("ADD", "application-app.conf", "/conf/application.conf"),
-    Cmd("LABEL", s"""version="${appVersion}""""),
+    Cmd("LABEL", s"""version="${dockerVersion}""""),
     ExecCmd("CMD", "/opt/docker/bin/eegfaktura-registration", "-Dconfig.file=/conf/application.conf")
   ),
-  dockerChmodType := DockerChmodType.UserGroupWriteExecute
+  dockerChmodType := DockerChmodType.UserGroupWriteExecute,
+  dockerAliases ++= {
+    val repo = dockerRepository.value
+    val name = packageName.value
+
+    Seq(
+      DockerAlias(repo, Some("eegfaktura"), name, Some(dockerVersion)),
+      DockerAlias(repo, Some("eegfaktura"), name, Some("latest")),
+    )
+  }
+
 )
