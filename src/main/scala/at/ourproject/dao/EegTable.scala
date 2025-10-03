@@ -1,13 +1,15 @@
 package at.ourproject.dao
 
 import at.ourproject.dao.SettlementIntervalType.SettlementIntervalType
+import slick.ast.BaseTypedType
+import slick.jdbc.JdbcType
 import slick.lifted.ProvenShape
 
 trait EegTable { this: Profile =>
 
   import profile.api._
 
-  implicit def powerPlantTypeMapping =
+  implicit def powerPlantTypeMapping: JdbcType[SettlementIntervalType] with BaseTypedType[SettlementIntervalType] =
     MappedColumnType.base[SettlementIntervalType, String](
       settlementIntervalEnu => settlementIntervalEnu.toString,
       settlementIntervalStr => SettlementIntervalType.withName(settlementIntervalStr)

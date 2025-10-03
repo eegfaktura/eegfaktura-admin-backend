@@ -58,8 +58,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
     val realm = realmResource(keycloakAdminClient)
     val users = usersResource(realm)
 
-    log.info(s"Create Keycloak-User: ${user.email}")
-    log.info(s"Create Keycloak-User: ${user}")
+    log.info(s"Create Keycloak-User: $user")
 
     val buildUsername = (firstname: String, lastname: String) => s"${normalizeName(lastname).substring(0,6)}${firstname.substring(0,2)}"
 
@@ -116,7 +115,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
   /**
    * Add appropriate tenant configuration to the user resource.
    *
-   * @param userResource User resource which will be changed
+   * @param user User resource which will be changed
    * @param tenant       Tenant to be added
    */
   private def addTenantToUserResource(user: UserRepresentation, tenant: String): UserRepresentation = {
@@ -131,7 +130,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
 
     val tenants = userAttributes.get("tenant").map(t => if (t.size() > 0) t.get(0) else "").getOrElse("")
     if (tenants.isEmpty) {
-      user.setAttributes(Map("tenant" -> List(s"""["${tenant}"]""").asJava).asJava)
+      user.setAttributes(Map("tenant" -> List(s"""["$tenant"]""").asJava).asJava)
     } else {
       val newTenants = decode[List[String]](tenants) match {
         case Right(value) => if (value.contains(tenant)) value else value :+ tenant
@@ -189,9 +188,9 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
 
         try {
           val creds = userResource.credentials().asScala.toList
-          if (creds.isEmpty) addCredentials(userResource = userResource, password = "Start!1234")
+          if (creds.isEmpty) addCredentials(userResource = userResource, password = "Start!2025")
         } catch {
-          case _: Throwable => addCredentials(userResource = userResource, password = "Start!1234")
+          case _: Throwable => addCredentials(userResource = userResource, password = "Start!2025")
         }
         userResource.update(addTenantToUserResource(user, tenant.toUpperCase()))
       }

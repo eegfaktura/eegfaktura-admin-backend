@@ -73,7 +73,7 @@ class AdminRoutes(daos: Dao, admin: ActorRef[AdminService.Command]) (implicit va
                   case AdminService.MessageUpdateOk =>
                     complete(daos.participantRepository.getById(updateMsg.participantId.getOrElse("")))
                   case AdminService.MessageUpdateFail(_, e) =>
-                    log.error(s"Message Update Failed - ${e}")
+                    log.error(s"Message Update Failed - $e")
                     complete(StatusCodes.BadRequest)
                 }
               }

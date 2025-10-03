@@ -8,14 +8,14 @@ import scala.concurrent.{ExecutionContext, Future}
 case class GridOperators(id: String, name: String)
 
 trait OperatorRepositoryComponent {
-  def getAll(): Future[Seq[GridOperators]]
+  def getAll: Future[Seq[GridOperators]]
 }
 
 class OperatorRepository(db: Database, p: JdbcProfile)(implicit ec: ExecutionContext) extends OperatorRepositoryComponent with OperatorTable with Profile {
   override val profile: JdbcProfile = p
   import profile.api._
 
-  override def getAll(): Future[Seq[GridOperators]] = db.run(operators.result)
+  override def getAll: Future[Seq[GridOperators]] = db.run(operators.result)
 }
 
 object OperatorRepository {

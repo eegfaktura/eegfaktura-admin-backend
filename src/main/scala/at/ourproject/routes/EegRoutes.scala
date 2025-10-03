@@ -28,7 +28,7 @@ class EegRoutes (daos: Dao, node: ActorRef[RegisterService.Command])(implicit va
         authorize { _ =>
           path("eeg") {
             get {
-              complete(daos.eegRepository.getAll())
+              complete(daos.eegRepository.getAll)
             }
           } ~
           path("participants") {
@@ -40,7 +40,7 @@ class EegRoutes (daos: Dao, node: ActorRef[RegisterService.Command])(implicit va
           } ~
           path("operators") {
             get {
-              complete(daos.operatorRepository.getAll())
+              complete(daos.operatorRepository.getAll)
             }
           }
         }
