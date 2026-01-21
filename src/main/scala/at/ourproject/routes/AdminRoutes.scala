@@ -33,16 +33,14 @@ object UpdateClassEnum extends Enumeration {
 
 case class UpdateMessage(updateClass: UpdateClassEnum, tenant: String, participantId: Option[String], meteringPoint: Option[String], value: Map[String, String])
 
-class AdminRoutes(daos: Dao, authenticator: KeycloakJwtAuthenticator, admin: ActorRef[AdminService.Command]) (implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router with TokenVerifier {
+class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[AuthenticatedUser]], admin: ActorRef[AdminService.Command]) (implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router {
   private implicit val timeout: Timeout = Timeout.create(system.settings.config.getDuration("app.routes.ask-timeout"))
   implicit val scheduler: Scheduler = system.scheduler
   implicit val materializer: Materializer = SystemMaterializer(system).materializer
 
   import at.ourproject.json.JsonFormater._
 
-  override val log: Logger = system.log
-  private val akkaAuthenticator: Credentials => scala.concurrent.Future[Option[AuthenticatedUser]] =
-    cred => authenticator.authenticate(cred)
+  val log: Logger = system.log
 
   private val adminRoutes = concat(
     pathPrefix("admin") {
