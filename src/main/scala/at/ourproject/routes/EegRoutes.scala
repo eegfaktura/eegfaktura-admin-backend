@@ -3,6 +3,7 @@ package at.ourproject.routes
 import akka.actor.typed.{ActorRef, ActorSystem, Scheduler}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.directives.Credentials
 import akka.stream.{Materializer, SystemMaterializer}
 import akka.util.Timeout
 import at.ourproject.dao.Dao
@@ -14,7 +15,7 @@ import org.slf4j.Logger
 
 import scala.concurrent.ExecutionContext
 
-class EegRoutes (daos: Dao, node: ActorRef[RegisterService.Command])(implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router with TokenVerifier {
+class EegRoutes (daos: Dao, authenticator: KeycloakJwtAuthenticator, node: ActorRef[RegisterService.Command])(implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router with TokenVerifier {
   private implicit val timeout: Timeout = Timeout.create(system.settings.config.getDuration("app.routes.ask-timeout"))
   implicit val scheduler: Scheduler = system.scheduler
   implicit val materializer: Materializer = SystemMaterializer(system).materializer
@@ -22,10 +23,12 @@ class EegRoutes (daos: Dao, node: ActorRef[RegisterService.Command])(implicit va
   implicit def executionContext: ExecutionContext = system.executionContext
 
   override val log: Logger = system.log
+  private val akkaAuthenticator: Credentials => scala.concurrent.Future[Option[AuthenticatedUser]] =
+    cred => authenticator.authenticate(cred)
 
   private val eegRoutes = {
       pathPrefix("vfeeg") {
-        authorize { _ =>
+        authenticateOAuth2Async(realm = "keycloak", authenticator = akkaAuthenticator) { user: AuthenticatedUser =>
           path("eeg") {
             get {
               complete(daos.eegRepository.getAll)

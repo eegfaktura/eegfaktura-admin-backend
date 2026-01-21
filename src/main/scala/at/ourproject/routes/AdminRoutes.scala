@@ -5,6 +5,7 @@ import akka.actor.typed.{ActorRef, ActorSystem, Scheduler}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.directives.Credentials
 import akka.stream.{Materializer, SystemMaterializer}
 import akka.util.Timeout
 import at.ourproject.dao.Dao
@@ -32,7 +33,7 @@ object UpdateClassEnum extends Enumeration {
 
 case class UpdateMessage(updateClass: UpdateClassEnum, tenant: String, participantId: Option[String], meteringPoint: Option[String], value: Map[String, String])
 
-class AdminRoutes(daos: Dao, admin: ActorRef[AdminService.Command]) (implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router with TokenVerifier {
+class AdminRoutes(daos: Dao, authenticator: KeycloakJwtAuthenticator, admin: ActorRef[AdminService.Command]) (implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router with TokenVerifier {
   private implicit val timeout: Timeout = Timeout.create(system.settings.config.getDuration("app.routes.ask-timeout"))
   implicit val scheduler: Scheduler = system.scheduler
   implicit val materializer: Materializer = SystemMaterializer(system).materializer
@@ -40,10 +41,12 @@ class AdminRoutes(daos: Dao, admin: ActorRef[AdminService.Command]) (implicit va
   import at.ourproject.json.JsonFormater._
 
   override val log: Logger = system.log
+  private val akkaAuthenticator: Credentials => scala.concurrent.Future[Option[AuthenticatedUser]] =
+    cred => authenticator.authenticate(cred)
 
   private val adminRoutes = concat(
     pathPrefix("admin") {
-      authorize { token =>
+      authenticateOAuth2Async(realm = "keycloak", authenticator = akkaAuthenticator) { user: AuthenticatedUser =>
         path("master" / "update") {
           pathEndOrSingleSlash {
             post {
