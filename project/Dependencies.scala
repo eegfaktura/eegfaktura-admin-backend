@@ -3,7 +3,8 @@ import sbt.*
 object Dependencies {
 
   private val githubPureConfigVersion = "0.17.4"
-  private val keycloakVersion = "22.0.5"
+  private val keycloakVersion = "26.0.6"
+  private val keycloakAdapterVersion = "25.0.3"
 //  private val keycloakVersion = "24.0.2"
   private val log4CatsVersion = "2.6.0"
   private val mockitoScalaVersion = "1.17.14"
@@ -37,7 +38,7 @@ object Dependencies {
   lazy val mockitoScalaTest = "org.mockito" %% "mockito-scala-scalatest" % mockitoScalaVersion
   lazy val keycloakCore = "org.keycloak" % "keycloak-core" % keycloakVersion exclude("com.fasterxml.jackson.core", "jackson-databind")
   lazy val keycloakAdminClient = "org.keycloak" % "keycloak-admin-client" % keycloakVersion
-  lazy val keycloakAdapter = "org.keycloak" % "keycloak-adapter-core" % keycloakVersion exclude("com.fasterxml.jackson.core", "jackson-databind")
+  lazy val keycloakAdapter = "org.keycloak" % "keycloak-adapter-core" % keycloakAdapterVersion exclude("com.fasterxml.jackson.core", "jackson-databind")
   lazy val sttpClient3 = "com.softwaremill.sttp.client3" %% "core" % sttpClient3Version
   lazy val akka = "com.typesafe.akka" %% "akka-actor-typed" % AkkaVersion
   lazy val akkaStream = "com.typesafe.akka" %% "akka-stream" % AkkaVersion
@@ -49,6 +50,7 @@ object Dependencies {
   lazy val slick = "com.typesafe.slick" %% "slick" % SlickVersion
   lazy val slickHikaricp = "com.typesafe.slick" %% "slick-hikaricp" % SlickVersion
   lazy val postgresLib = "org.postgresql" % "postgresql" % "42.2.5"
+  lazy val nimbusdsJwt = "com.nimbusds" % "nimbus-jose-jwt" % "9.31"
 //  "org.postgresql" % "postgresql" % "42.2.5"
 
   lazy val slickTestkit = "com.typesafe.slick" %% "slick-testkit" % SlickVersion

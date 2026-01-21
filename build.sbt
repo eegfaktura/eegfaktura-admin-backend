@@ -1,11 +1,11 @@
 import Dependencies.*
 import com.typesafe.sbt.packager.docker.{Cmd, DockerChmodType, ExecCmd}
 
-ThisBuild / version := "0.2.7-SNAPSHOT"
+ThisBuild / version := "0.2.10-SNAPSHOT"
 
 ThisBuild / scalaVersion := "2.13.9"
 
-val dockerVersion      = "0.2.9"
+val dockerVersion      = "0.2.11"
 
 lazy val root = (project in file("."))
   .enablePlugins(AkkaGrpcPlugin)
@@ -20,7 +20,7 @@ lazy val root = (project in file("."))
         /*slf4j,*/ scalaLogging, logback,
         akka, akkaStream, akkaHttp,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
-        slick, slickHikaricp, postgresLib
+        slick, slickHikaricp, postgresLib, nimbusdsJwt
     ),
 
     libraryDependencies ++= Seq(
@@ -34,7 +34,7 @@ lazy val dockerSettings = Seq(
 //  Docker / maintainer := "vfeeg <vfeeg.org>",
 //  Docker / version := appVersion,
 
-  dockerBaseImage := "openjdk:17",
+  dockerBaseImage := "eclipse-temurin:17-jre",
   dockerRepository := Some("ghcr.io"),
   dockerUsername := Some("vfeeg-development"),
   packageName := "eeg-registration-backend",

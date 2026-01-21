@@ -5,6 +5,7 @@ import akka.actor.typed.{ActorRef, ActorSystem, Scheduler}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.directives.Credentials
 import akka.stream.{Materializer, SystemMaterializer}
 import akka.util.Timeout
 import at.ourproject.services.RegisterService
@@ -15,7 +16,7 @@ import org.slf4j.Logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class RegistrationRoutes(node: ActorRef[RegisterService.Command])(implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router with TokenVerifier {
+class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[AuthenticatedUser]], node: ActorRef[RegisterService.Command])(implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router with TokenVerifier {
   private implicit val timeout: Timeout = Timeout.create(system.settings.config.getDuration("app.routes.ask-timeout"))
   implicit val scheduler: Scheduler = system.scheduler
   implicit val materializer: Materializer = SystemMaterializer(system).materializer
@@ -25,7 +26,7 @@ class RegistrationRoutes(node: ActorRef[RegisterService.Command])(implicit val s
   private val registrationRoutes = {
     concat(
       pathPrefix("eeg") {
-        authorize { token =>
+        authenticateOAuth2Async(realm = "keycloak", authenticator = akkaAuthenticator) { user: AuthenticatedUser =>
           path("register") {
             pathEndOrSingleSlash {
               post {

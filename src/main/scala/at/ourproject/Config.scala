@@ -2,10 +2,6 @@ package at.ourproject
 
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.parser._
-import io.circe.{Json, ParsingFailure}
-
-import java.io.ByteArrayInputStream
-import scala.io.Source
 
 //object Config {
 //  case class Auth(url: String, clientId: String, clientSecret: String, realm: String)
@@ -36,7 +32,7 @@ object KeycloakConfig {
 
   val config: Config = ConfigFactory.load()
 
-  private def keycloakFile = config.getString("keycloak.configfile")
+/*  private def keycloakFile = config.getString("keycloak.configfile")
 
   private val keycloakConfigJson: Json = {
     val jsonString: String = scala.io.Source.fromFile(keycloakFile).mkString
@@ -60,7 +56,7 @@ object KeycloakConfig {
       case Right(json) =>
         (json \\ "admin").head
     }
-  }
+  }*/
 
 //  def transform(in: Json): Either[DecodingFailure, Json] =
 //    in.hcursor.downField("secret").delete.as[JsonObject].map(Json.fromJsonObject)
@@ -70,7 +66,7 @@ object KeycloakConfig {
 //    case Right(json) => json
 //  }
 
-  def keycloakConfigStream = new ByteArrayInputStream(keycloakConfigAdminJson.noSpaces.getBytes(java.nio.charset.StandardCharsets.UTF_8.name))
+/*  def keycloakConfigStream = new ByteArrayInputStream(keycloakConfigAdminJson.noSpaces.getBytes(java.nio.charset.StandardCharsets.UTF_8.name))
 
   def getkey: String => String = (key: String) =>
     keycloakConfigJson.hcursor.downField(key).as[String] match {
@@ -92,4 +88,22 @@ object KeycloakConfig {
   }
 
   def keycloakAdminConfig: Configuration = Configuration(buildAuthObject)
+  */
+  def keycloakAdminConfig: Configuration = Configuration(
+    Auth(
+      url = config.getString("keycloak.url"),
+      clientId = config.getString("keycloak.clientId"),
+      clientSecret = config.getString("keycloak.secret"),
+      realm = config.getString("keycloak.realm")
+    )
+  )
+
+  def keycloakJWTConfig: Configuration = Configuration(
+    Auth(
+      url = config.getString("keycloakAuthenticator.url"),
+      clientId = config.getString("keycloakAuthenticator.clientId"),
+      clientSecret = "",
+      realm = config.getString("keycloakAuthenticator.realm")
+    )
+  )
 }
