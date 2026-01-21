@@ -22,8 +22,6 @@ object Registration extends App {
   val rootBehavior = Behaviors.setup[Nothing] { context =>
 
     import context._
-//    import log._
-
     implicit val system: ActorSystem[Nothing] = context.system
 
     val daos = new Dao with DbInstance {
@@ -43,11 +41,11 @@ object Registration extends App {
       cred => authenticator.authenticate(cred)
 
     val regRouter = new RegistrationRoutes(akkaAuthenticator, node)
-    val eegRouter = new EegRoutes(daos, authenticator, node)
-    val adminRouter = new AdminRoutes(daos, authenticator, masterNode)
+    val eegRouter = new EegRoutes(daos, akkaAuthenticator, node)
+    val adminRouter = new AdminRoutes(daos, akkaAuthenticator, masterNode)
     HttpServer.startHttpServer(regRouter.route ~ eegRouter.route ~ adminRouter.route)
 
-    Registration.system.log.debug("Registration Server started ...")
+    Registration.system.log.info("Registration Server started ...")
 
     Behaviors.empty
   }

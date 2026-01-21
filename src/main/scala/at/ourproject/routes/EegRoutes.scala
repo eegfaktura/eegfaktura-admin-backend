@@ -13,18 +13,16 @@ import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import org.slf4j.Logger
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
-class EegRoutes (daos: Dao, authenticator: KeycloakJwtAuthenticator, node: ActorRef[RegisterService.Command])(implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router with TokenVerifier {
+class EegRoutes (daos: Dao, akkaAuthenticator: Credentials => Future[Option[AuthenticatedUser]], node: ActorRef[RegisterService.Command])(implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router {
   private implicit val timeout: Timeout = Timeout.create(system.settings.config.getDuration("app.routes.ask-timeout"))
   implicit val scheduler: Scheduler = system.scheduler
   implicit val materializer: Materializer = SystemMaterializer(system).materializer
 
   implicit def executionContext: ExecutionContext = system.executionContext
 
-  override val log: Logger = system.log
-  private val akkaAuthenticator: Credentials => scala.concurrent.Future[Option[AuthenticatedUser]] =
-    cred => authenticator.authenticate(cred)
+  private val log: Logger = system.log
 
   private val eegRoutes = {
       pathPrefix("vfeeg") {
