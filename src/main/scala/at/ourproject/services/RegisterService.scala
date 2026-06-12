@@ -5,11 +5,12 @@ import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
 import akka.grpc.GrpcClientSettings
 import akka.util.Timeout
 import at.energydash.admin.{RegisterPontonRequest, RegisterPontonServiceClient}
-import at.ourproject.dao.Db
+import at.ourproject.admin.{AdminEegServiceClient, UpdateEegRequest}
 import at.ourproject.keycloak.KeycloakClient
 import at.ourproject.keycloak.KeycloakClient.User
 import at.ourproject.register.{RegisterEegRequest, RegisterEegServiceClient}
 import io.circe.{Decoder, Encoder}
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
@@ -51,23 +52,36 @@ object EegSettlementType extends Enumeration {
   val ANNUAL, BIANNUAL, QUARTER, MONTHLY = Value
 }
 
+object PontonCommType extends Enumeration {
+  type PontonComm = Value
+
+  implicit val decoder: Decoder[Value] = Decoder.decodeEnumeration(this)
+  implicit val encoder: Encoder[Value] = Encoder.encodeEnumeration(this)
+
+  val NONE, KEP, MAIL = Value
+}
+
 object RegisterService {
 
   import at.ourproject.services.EegLegalType.EegLegal
   import at.ourproject.services.EegSettlementType.EegSettlement
   import at.ourproject.services.GridAllocationType.GridAllocation
   import at.ourproject.services.GridAreaType.GridArea
+  import at.ourproject.services.PontonCommType.PontonComm
 
   trait Command
-  case class PontonRegInfo(tenant: String, username: String, password: String, domain: String)
 
-  case class PontonInfo(username: String, password: String, domain: String, host: String, port: Int)
+  trait ResponseCommand extends Command
 
-  case class Contact(owner: String, street: String, streetNumber: String, city: String, zip: String, email: String, web: Option[String], phone: Option[String])
+  case class PontonInfo(username: String, password: String, domain: String, host: Option[String], port: Option[Int], pontonCommType: PontonComm)
 
-  case class AccountInfo(iban: String, owner: String, sepa: Boolean, bankName: String)
+  case class PontonRegInfo(tenant: String, rcNumber: String, pontonInfo: PontonInfo)
 
-  case class BusinessInfo(legal: EegLegal, businessNr: String, taxNumber: String, vatNumber: String, settlementInterval: EegSettlement)
+  case class Contact(street: String, streetNumber: String, city: String, zip: String, web: Option[String], phone: Option[String])
+
+  case class AccountInfo(iban: String, owner: String, sepa: Boolean)
+
+  case class BusinessInfo(legal: EegLegal, settlementInterval: EegSettlement)
 
   case class Grid(id: String, name: String, area: GridArea, allocation: GridAllocation)
 
@@ -76,29 +90,40 @@ object RegisterService {
   case class Eeg(tenant: String, rcNumber: String, communityId: String, name: String, description: String, online: Boolean,
                  accountInfo: AccountInfo, businessInfo: BusinessInfo, grid: Grid, contact: Contact, pontonInfo: PontonInfo, user: UserInfo)
 
-  case class AutorizedUser(firstname: String, lastname: String, email: String, tenant: String, roles: Option[List[String]])
+  case class AuthorizedUser(firstname: String, lastname: String, email: String, tenant: String, roles: Option[List[String]])
 
   case class RegisterEeg(eeg: Eeg, groups: List[String], replyTo: ActorRef[Command]) extends Command
 
-  case class EegRegisterd(code: Int, message: String) extends Command
+  case class EegRegistered(code: Int, message: String) extends ResponseCommand
+  case class EegRegisterError(code: Int, message: String) extends ResponseCommand
 
-  case class RegisterParticipant(tenant: String, firstname: String, lastname: String, email: String) extends Command
-
-  case class AutorizeParticipant(email: String, tenant: String, roles: List[String])
+  private case class RegisterParticipant(tenant: String, firstname: String, lastname: String, email: String) extends Command
 
   case class LookupUsersRequest(tenant: String, replyTo: ActorRef[Command]) extends Command
 
-  case class LookupUsersResponse(users: List[AutorizedUser]) extends Command
+  case class LookupUsersResponse(users: List[AuthorizedUser]) extends Command
 
   case class AddTenantToUser(tenant: String, user: String, replyTo: ActorRef[Command]) extends Command
   case class AddTenantToUserResponse(status: Int) extends Command
 
-  case class PontonRegister(tenant: String, username: String, password: String, domain: String, replyTo: ActorRef[Command]) extends Command
+  case class PontonRegister(tenant: String, rcNumber: String, pontonInfo: PontonInfo, replyTo: ActorRef[Command]) extends Command
   case class PontonRegisterResponse(status: Int, message: String) extends Command
+
+  val log: Logger = LoggerFactory.getLogger(getClass)
+
+  def registerPonton(eeg: Eeg, pontonClient: RegisterPontonServiceClient)(implicit ec: ExecutionContext): Future[Boolean]  = {
+    eeg.pontonInfo.pontonCommType match {
+      case PontonCommType.NONE => Future(true)
+      case _ if eeg.online =>
+        pontonClient.register(
+          RegisterPontonRequest(eeg.rcNumber.toUpperCase(), eeg.pontonInfo.username, eeg.pontonInfo.password, eeg.pontonInfo.domain)).map(r => r.status == 200)
+      case _ => Future(true)
+    }
+  }
 
   def apply(keycloakClient: KeycloakClient): Behavior[Command] = {
     import scala.jdk.CollectionConverters._
-    val dbConfig = Db.getConfig
+//    val dbConfig = Db.getConfig
 
     Behaviors.setup[Command] { context =>
       implicit def system: ActorSystem[Nothing] = context.system
@@ -107,9 +132,10 @@ object RegisterService {
 
       implicit def scheduler: Scheduler = context.system.scheduler
 
-      implicit lazy val timeout: Timeout = Timeout(5.seconds)
+      implicit lazy val timeout: Timeout = Timeout(15.seconds)
       //      context.system.receptionist ! Receptionist.Register(NodeServiceKey, context.self)
 
+      val adminClient = AdminEegServiceClient(GrpcClientSettings.fromConfig("register.RegisterEegService"))
       val eegClient = RegisterEegServiceClient(GrpcClientSettings.fromConfig("register.RegisterEegService"))
       val pontonClient = RegisterPontonServiceClient(GrpcClientSettings.fromConfig("register.RegisterPontonService"))
 
@@ -120,13 +146,13 @@ object RegisterService {
           case RegisterEeg(eeg, groups, replyTo) => {
             val userExists = keycloakClient.checkUserAlreadyExist(eeg.user.email)
             val request = RegisterEegRequest(eeg.tenant, eeg.rcNumber.toUpperCase(), eeg.communityId, eeg.name, eeg.description,
-              eeg.accountInfo.iban, eeg.accountInfo.owner, eeg.accountInfo.sepa, eeg.accountInfo.bankName,
+              eeg.accountInfo.iban, eeg.accountInfo.owner, eeg.accountInfo.sepa,
               (eeg.businessInfo.legal match {
                 case EegLegalType.verein => RegisterEegRequest.EEG_LEGAL.verein
                 case EegLegalType.gesellschaft => RegisterEegRequest.EEG_LEGAL.gesellschaft
                 case EegLegalType.genossenschaft => RegisterEegRequest.EEG_LEGAL.genossenschaft
                 case _ => RegisterEegRequest.EEG_LEGAL.verein
-              }), eeg.businessInfo.businessNr, eeg.businessInfo.taxNumber, eeg.businessInfo.vatNumber,
+              }),
               (eeg.businessInfo.settlementInterval match {
                 case EegSettlementType.ANNUAL => RegisterEegRequest.EEG_SETTELMENT.ANNUAL
                 case EegSettlementType.BIANNUAL => RegisterEegRequest.EEG_SETTELMENT.BIANNUAL
@@ -141,41 +167,47 @@ object RegisterService {
               }), (eeg.grid.allocation match {
                 case GridAllocationType.DYNAMIC => RegisterEegRequest.GRID_ALLOCATION.DYNAMIC
                 case _ => RegisterEegRequest.GRID_ALLOCATION.STATIC
-              }), eeg.contact.owner, eeg.contact.street, eeg.contact.streetNumber, eeg.contact.city, eeg.contact.zip,
-              eeg.contact.email, eeg.contact.web, eeg.contact.phone, eeg.online,
+              }), s"${eeg.user.firstname} ${eeg.user.lastname}", eeg.contact.street, eeg.contact.streetNumber, eeg.contact.city, eeg.contact.zip,
+              eeg.user.email, eeg.contact.web, eeg.contact.phone, eeg.online,
             )
-
-            val pontonRequest = RegisterPontonRequest(eeg.rcNumber.toUpperCase(), eeg.pontonInfo.username, eeg.pontonInfo.password, eeg.pontonInfo.domain)
 
             context.log.info(s"Register new EEG ${request}")
 
             (for {
-              eegReply <- eegClient.register(request).map(r => {
-                if (r.status == 201) true else false
-              })
-              pontonReply <- if (eeg.online) pontonClient.register(pontonRequest).map(r => if (r.status == 200) true else false) else Future(true)
+              eegReply <- eegClient.register(request).map(r => r.status == 201)
+              pontonReply <- registerPonton(eeg, pontonClient)
             } yield (eegReply && pontonReply)).onComplete {
-              case Success(state) =>
+              case Success(state) if state =>
                 try {
+                  log.info(s"Create Keycloak User [exists=${userExists}} - ${eeg.rcNumber}")
                   if (userExists) {
                     keycloakClient.getUserId(eeg.user.email) match {
                       case Success(id) =>
-                        keycloakClient.addTenantToUser(id, eeg.rcNumber)
-                        replyTo ! EegRegisterd(201, "")
-                      case _ => replyTo ! EegRegisterd(510, "Error adding tenant to user")
+                        keycloakClient.configureUser(
+                          userId = id, tenant = eeg.rcNumber, userInfo = eeg.user,
+                          userGroups = keycloakClient.getGroups.filter(g => groups.contains(g.getName)))
+                        replyTo ! EegRegistered(201, "")
+                      case _ => replyTo ! EegRegisterError(510, "Error adding tenant to user")
                     }
                   } else {
-                    //                    println(s"REGISTRATION STATE: ${state}")
-                    val keyCloakUser = User(eeg.user.username, eeg.user.firstname, eeg.user.lastname, eeg.user.email, eeg.user.password)
-                    val userGroups = keycloakClient.getGroups().filter(g => groups.contains(g.getName))
-                    //                    println(s"Create Keycloak User: ${keyCloakUser}, ${userGroups}")
+                    val keyCloakUser = User(Option(eeg.user.username).filter(_.nonEmpty), eeg.user.firstname, eeg.user.lastname, eeg.user.email, Option(eeg.user.password).filter(_.nonEmpty))
+                    val userGroups = keycloakClient.getGroups.filter(g => groups.contains(g.getName))
                     keycloakClient.createUser(keyCloakUser, eeg.rcNumber, userGroups)
+
+                    log.info(s"Keycloak User created ${!userExists} - ${eeg.rcNumber}")
+                    replyTo ! EegRegistered(201, "")
                   }
-                  replyTo ! EegRegisterd(201, "")
                 } catch {
-                  case e: Exception => replyTo ! EegRegisterd(501, e.getMessage)
+                  case e: Exception =>
+                    log.error(s"Creating/Updating ($userExists) Keycloak User failed ${eeg.rcNumber} - ${e.getMessage}")
+                    replyTo ! EegRegisterError(510, s"Creating Keycloak User failed! ${e.getMessage}")
                 }
-              case Failure(e) => replyTo ! EegRegisterd(502, e.getMessage)
+              case Failure(e) =>
+                log.error(s"Failure Create User: ${e.toString}")
+                replyTo ! EegRegisterError(502, s"Creating Tenant failed! ${e.getMessage}")
+              case e =>
+                log.error(s"Error creating EEG ${e.toString}")
+                replyTo ! EegRegisterError(501, "Creating Tenant failed!")
             }
           }
 
@@ -194,7 +226,7 @@ object RegisterService {
               keycloakClient.findUserByTenant(tenant) match {
                 case Success(l) =>
                   l.filter(ku => ku.getFirstName != null).map(ku =>
-                    AutorizedUser(ku.getFirstName, ku.getLastName, ku.getEmail, tenant, if (ku.getRealmRoles == null) None else Some(ku.getRealmRoles.asScala.toList)))
+                    AuthorizedUser(ku.getFirstName, ku.getLastName, ku.getEmail, tenant, if (ku.getRealmRoles == null) None else Some(ku.getRealmRoles.asScala.toList)))
                 case Failure(e) =>
                   context.log.error(e.getMessage)
                   List.empty
@@ -208,11 +240,24 @@ object RegisterService {
               case _ => replyTo ! AddTenantToUserResponse(500)
             }
 
-          case PontonRegister(tenant, username, password, domain, replyTo) =>
-            val pontonRequest = RegisterPontonRequest(tenant.toUpperCase(), username, password, domain)
+          case PontonRegister(tenant, rcNumber, pontonInfo, replyTo) =>
+            val pontonRequest = RegisterPontonRequest(rcNumber.toUpperCase(),
+              pontonInfo.username,
+              pontonInfo.password,
+              pontonInfo.domain,
+              pontonInfo.pontonCommType.toString)
 
             pontonClient.register(pontonRequest).onComplete {
-              case Success(value) if value.status == 200 => replyTo ! PontonRegisterResponse(200, value.message)
+              case Success(value) if value.status == 200 => {
+                adminClient.updateValue(UpdateEegRequest(
+                  updateClass = UpdateEegRequest.UPDATE_CLASS.EEG,
+                  tenant = tenant,
+                  value = Map("online" -> "true"),
+                )) onComplete {
+                  case Success(_) => replyTo ! PontonRegisterResponse(500, value.message)
+                  case Failure(ex) => replyTo ! PontonRegisterResponse(500, ex.getMessage)
+                }
+              }
               case Success(value) => replyTo ! PontonRegisterResponse(500, value.message)
               case Failure(exception) => replyTo ! PontonRegisterResponse(500, exception.getMessage)
             }

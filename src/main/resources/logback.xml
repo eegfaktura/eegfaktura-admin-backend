@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder>
+            <pattern>%date{ISO8601} %-5level [%thread] %logger - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <logger name="at.ourproject" level="DEBUG"/>
+    <logger name="org.apache.http" level="${log_slick_action:-inherited}"/>
+    <logger name="org.apache.http.wire" level="${log_slick_action:-inherited}"/>
+    <logger name="org.jboss.resteasy" level="${log_slick_action:-inherited}"/>
+    <logger name="com.zaxxer.hikari" level="${log_slick_action:-WARN}"/>
+    <logger name="slick.basic.BasicBackend.action" level="${log_action:-inherited}"/>
+    <logger name="slick.basic.BasicBackend.stream" level="${log_stream:-inherited}"/>
+    <logger name="slick.compiler" level="OFF"/>
+    <logger name="slick.compiler.QueryCompiler" level="OFF"/>
+    <logger name="slick.compiler.QueryCompilerBenchmark" level="OFF"/>
+    <logger name="slick.jdbc.DriverDataSource" level="${log_jdbc_driver:-inherited}"/>
+    <logger name="slick.jdbc.JdbcBackend.statement" level="${log_jdbc_statement:-inherited}"/>
+    <logger name="slick.jdbc.JdbcBackend.parameter" level="${log_jdbc_parameter:-inherited}"/>
+    <logger name="slick.jdbc.JdbcBackend.benchmark" level="${log_jdbc_bench:-inherited}"/>
+    <logger name="slick.jdbc.StatementInvoker.result" level="${log_jdbc_result:-inherited}"/>
+    <logger name="slick.jdbc.JdbcModelBuilder" level="${log_createModel:-inherited}"/>
+    <logger name="slick.memory.HeapBackend" level="${log_heap:-inherited}"/>
+    <logger name="slick.memory.QueryInterpreter" level="${log_interpreter:-inherited}"/>
+    <logger name="slick.relational.ResultConverterCompiler" level="${log_resultConverter:-inherited}"/>
+    <logger name="slick.util.AsyncExecutor" level="${log_asyncExecutor:-inherited}"/>
+</configuration>

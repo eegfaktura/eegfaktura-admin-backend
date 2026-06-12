@@ -1,6 +1,5 @@
 package at.ourproject.dao
 
-import slick.basic.DatabaseConfig
 import slick.jdbc.JdbcBackend.Database
 import slick.jdbc.{JdbcProfile, PostgresProfile}
 
@@ -12,11 +11,11 @@ trait Db {
 
 }
 
-object Db {
-  def getConfig: DatabaseConfig[JdbcProfile] = {
-    DatabaseConfig.forConfig[JdbcProfile]("slick.pgsql.local.default")
-  }
-}
+//object Db {
+//  def getConfig: DatabaseConfig[JdbcProfile] = {
+//    DatabaseConfig.forConfig[JdbcProfile]("slick.pgsql.local.default")
+//  }
+//}
 
 trait DbInstance extends Db {
   override val db = Database.forConfig("slick.pgsql.vfeeg")
