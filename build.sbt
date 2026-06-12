@@ -1,11 +1,11 @@
-import com.typesafe.sbt.packager.docker.*
 import Dependencies.*
+import com.typesafe.sbt.packager.docker.{Cmd, DockerChmodType, ExecCmd}
 
-ThisBuild / version := "0.2.0-SNAPSHOT"
+ThisBuild / version := "0.2.10-SNAPSHOT"
 
-ThisBuild / scalaVersion := "2.13.11"
+ThisBuild / scalaVersion := "2.13.9"
 
-val appVersion      = "0.2.2"
+val dockerVersion      = "0.2.11"
 
 lazy val root = (project in file("."))
   .enablePlugins(AkkaGrpcPlugin)
@@ -13,32 +13,33 @@ lazy val root = (project in file("."))
   .settings(dockerSettings)
   .settings(
     name := "eegfaktura-registration",
-
+    resolvers += "Akka library repository" at "https://repo.akka.io/maven",
     libraryDependencies ++= Seq(
         keycloakCore, keycloakAdminClient, keycloakAdapter,
         sttpClient3,
-        slf4j,
+        /*slf4j,*/ scalaLogging, logback,
         akka, akkaStream, akkaHttp,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
-        slick, slickHikaricp, postgresLib
+        slick, slickHikaricp, postgresLib, nimbusdsJwt
     ),
 
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.2.14",
-      "com.typesafe.akka" %% "akka-stream-testkit" % AkkaVersion,
-      "com.typesafe.akka" %% "akka-actor-testkit-typed" % AkkaVersion,
+      scalaTest, streamTestkit, akkaTestkit,
     ).map(_ % Test),
 
   )
 
 lazy val dockerSettings = Seq(
-  Docker / packageName := "eeg-registration-backend",
-  Docker / maintainer := "vfeeg <vfeeg.org>",
-  Docker / version := appVersion,
-  dockerBaseImage := "openjdk:17",
+//  Docker / packageName := "eeg-registration-backend",
+//  Docker / maintainer := "vfeeg <vfeeg.org>",
+//  Docker / version := appVersion,
+
+  dockerBaseImage := "eclipse-temurin:17-jre",
   dockerRepository := Some("ghcr.io"),
   dockerUsername := Some("vfeeg-development"),
-  //  dockerUpdateLatest := true,
+  packageName := "eeg-registration-backend",
+  maintainer := "vfeeg <vfeeg.org>",
+  dockerUpdateLatest := true,
   dockerExposedVolumes := Seq("/conf"),
   dockerExposedPorts := Seq(8085),
   dockerCommands := dockerCommands.value.filterNot {
@@ -47,8 +48,18 @@ lazy val dockerSettings = Seq(
   },
   dockerCommands ++= Seq(
     //    Cmd("ADD", "application-app.conf", "/conf/application.conf"),
-    Cmd("LABEL", s"""version="${appVersion}""""),
+    Cmd("LABEL", s"""version="${dockerVersion}""""),
     ExecCmd("CMD", "/opt/docker/bin/eegfaktura-registration", "-Dconfig.file=/conf/application.conf")
   ),
-  dockerChmodType := DockerChmodType.UserGroupWriteExecute
+  dockerChmodType := DockerChmodType.UserGroupWriteExecute,
+  dockerAliases ++= {
+    val repo = dockerRepository.value
+    val name = packageName.value
+
+    Seq(
+      DockerAlias(repo, Some("eegfaktura"), name, Some(dockerVersion)),
+      DockerAlias(repo, Some("eegfaktura"), name, Some("latest")),
+    )
+  }
+
 )

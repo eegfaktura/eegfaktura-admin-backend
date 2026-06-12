@@ -1,7 +1,7 @@
 {
   "admin": {
     "realm": "EEGFaktura",
-    "auth-server-url": "https://login.eegfaktura.at/",
+    "auth-server-url": "http://localhost:7080/",
     "ssl-required": "external",
     "resource": "at.ourproject.vfeeg.admin",
     "public-client": true,
@@ -11,13 +11,13 @@
   },
   "admin-cli": {
     "realm": "EEGFaktura",
-    "auth-server-url": "https://login.eegfaktura.at/",
+    "auth-server-url": "http://localhost:7080/",
     "ssl-required": "external",
     "resource": "admin-cli",
     "public-client": true,
     "verify-token-audience": true,
     "use-resource-role-mappings": true,
     "confidential-port": 0,
-    "secret": "oNvPxFmbcRMlQHh9JJfdZBzMDbMfjSIZ"
+    "secret": "P85u55EUB7w6JFjQBxsHDCbdy8TXibDI"
   }
 }
