@@ -12,8 +12,11 @@ object Dependencies {
   private val awsUtilsVersion = "0.1.92"
   private val sttpClient3Version = "3.8.15"
   // Migration auf Apache Pekko 2026-06-13 (statt BSL-lizenziertem Akka).
-  // Pekko 1.0.x = Apache-Fork von Akka 2.6.x. Pekko 1.1.x folgt Akka 2.7-API.
-  private val PekkoVersion = "1.1.6"
+  // Pekko 1.0.x = Apache-Fork von Akka 2.6.x. Pekko 1.2.x folgt Akka 2.7-API.
+  // 1.2.1 ist die aelteste auf Maven Central verfuegbare 1.x-Version fuer
+  // pekko-actor-typed. pekko-http 1.2.0 + pekko-grpc-sbt-plugin 1.1.1 sind
+  // mit pekko 1.2.x kompatibel (semver).
+  private val PekkoVersion = "1.2.1"
   private val PekkoHttpVersion = "1.2.0"
   private val CirceVersion = "0.14.3"
   private val SlickVersion = "3.5.1"
