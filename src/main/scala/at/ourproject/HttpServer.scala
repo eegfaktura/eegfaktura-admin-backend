@@ -1,8 +1,8 @@
 package at.ourproject
 
-import akka.actor.typed.ActorSystem
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.server.Route
+import org.apache.pekko.actor.typed.ActorSystem
+import org.apache.pekko.http.scaladsl.Http
+import org.apache.pekko.http.scaladsl.server.Route
 
 import scala.util.{Failure, Success}
 

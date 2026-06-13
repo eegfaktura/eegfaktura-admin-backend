@@ -1,13 +1,13 @@
 package at.ourproject.routes
 
-import akka.actor.typed.scaladsl.AskPattern.Askable
-import akka.actor.typed.{ActorRef, ActorSystem, Scheduler}
-import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import akka.http.scaladsl.server.directives.Credentials
-import akka.stream.{Materializer, SystemMaterializer}
-import akka.util.Timeout
+import org.apache.pekko.actor.typed.scaladsl.AskPattern.Askable
+import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Scheduler}
+import org.apache.pekko.http.scaladsl.model.StatusCodes
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.Route
+import org.apache.pekko.http.scaladsl.server.directives.Credentials
+import org.apache.pekko.stream.{Materializer, SystemMaterializer}
+import org.apache.pekko.util.Timeout
 import at.ourproject.services.RegisterService
 import at.ourproject.services.RegisterService.{Eeg, PontonRegInfo}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
