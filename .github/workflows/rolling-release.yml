@@ -17,14 +17,15 @@
 # build.sbt:40 `packageName` beibehalten, damit kein Source-Code-Eingriff
 # noetig ist).
 #
-# ⚠️ STUFE 1: KEIN repository_dispatch-Job. Erstmal nur sicherstellen, dass
-# der Source-Code auf einer CI-Maschine durchbaut. Wenn 1-2 push-builds gruen
-# sind und das Image im Cluster manuell getestet wurde, wird der
-# dispatch-deploy-Job in einer zweiten Iteration ergaenzt (Stufe 3).
+# Voll-Pipeline Stufe 3: Build + Push + dispatch-deploy zum Platform-Repo.
 #
-# Vorbedingung Stufe 1: keine (GITHUB_TOKEN reicht aus, kein PLATFORM_DEPLOY_PAT).
-# Vorbedingung Stufe 3: `PLATFORM_DEPLOY_PAT`-Secret im Repo + dispatch-deploy
-# job in dieser Datei.
+# Vorbedingungen:
+#   - GITHUB_TOKEN (automatisch verfuegbar) — fuer GHCR-Push
+#   - PLATFORM_DEPLOY_PAT-Secret im Source-Repo — fuer Cross-Repo-Dispatch
+#     (Fine-grained Token 'eegfaktura-platform-dispatch')
+#   - Mapping `deploy-admin-backend` in Platform-Workflow deploy-on-dispatch.yml (vorhanden)
+#   - K8s-Manifest k8s/32-admin-backend.yaml zeigt auf
+#     ghcr.io/eegfaktura/eeg-registration-backend:latest (vorhanden)
 
 name: Docker Image CI (sbt-native-packager)
 
@@ -92,12 +93,31 @@ jobs:
             sbt 'set dockerUsername := Some("eegfaktura")' Docker/publish
           fi
 
-  # NOTE — Stufe 3: hier kommt ein zweiter Job `dispatch-deploy` rein,
-  # analog zu eegfaktura-filestore-rolling-release.yml.
-  # Erst aktivieren, wenn:
-  #   - Build oben mindestens 1x erfolgreich auf push-to-default-branch
-  #   - K8s-Manifest k8s/32-admin-backend.yaml im Platform-Repo getestet
-  #     (zeigt schon auf ghcr.io/eegfaktura/eeg-registration-backend:latest)
-  #   - Platform-Workflow deploy-on-dispatch.yml akzeptiert `deploy-admin-backend`
-  #     bereits (Mapping ist drin)
-  #   - `PLATFORM_DEPLOY_PAT`-Secret im Source-Repo gesetzt
+  # Triggert das Platform-Repo, damit es den Cluster aktualisiert.
+  # Laeuft nur bei push to default-branch (master/main), nicht bei PRs oder Tags.
+  # Vorbedingung: PLATFORM_DEPLOY_PAT-Secret muss im Source-Repo gesetzt sein
+  # (Fine-grained PAT 'eegfaktura-platform-dispatch' mit Repository-Dispatch-Write
+  # auf vfeeg-development/eegfaktura-platform).
+  dispatch-deploy:
+    needs: build-and-push-image
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy in platform repo
+        env:
+          GH_TOKEN: ${{ secrets.PLATFORM_DEPLOY_PAT }}
+        run: |
+          PAYLOAD=$(cat <<EOF
+          {
+            "event_type": "deploy-admin-backend",
+            "client_payload": {
+              "image_tag": "latest",
+              "source_sha": "${GITHUB_SHA}",
+              "source_repo": "${GITHUB_REPOSITORY}",
+              "source_ref": "${GITHUB_REF}"
+            }
+          }
+          EOF
+          )
+          echo "$PAYLOAD" | gh api repos/vfeeg-development/eegfaktura-platform/dispatches --input -
+          echo "Dispatched deploy-admin-backend for sha=${GITHUB_SHA:0:8}"
