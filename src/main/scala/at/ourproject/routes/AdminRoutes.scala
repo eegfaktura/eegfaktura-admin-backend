@@ -11,7 +11,7 @@ import org.apache.pekko.util.Timeout
 import at.ourproject.dao.Dao
 import at.ourproject.routes.UpdateClassEnum.UpdateClassEnum
 import at.ourproject.services.AdminService
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import io.circe.{Decoder, Encoder}
 import org.slf4j.Logger

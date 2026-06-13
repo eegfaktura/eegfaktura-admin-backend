@@ -9,7 +9,7 @@ import org.apache.pekko.util.Timeout
 import at.ourproject.dao.Dao
 import at.ourproject.json.JsonFormater._
 import at.ourproject.services.RegisterService
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import org.slf4j.Logger
 

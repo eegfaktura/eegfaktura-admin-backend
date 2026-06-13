@@ -10,7 +10,7 @@ import org.apache.pekko.stream.{Materializer, SystemMaterializer}
 import org.apache.pekko.util.Timeout
 import at.ourproject.services.RegisterService
 import at.ourproject.services.RegisterService.{Eeg, PontonRegInfo}
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
+import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import org.slf4j.Logger
 
