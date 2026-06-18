@@ -74,23 +74,26 @@ jobs:
             sbt-${{ runner.os }}-
 
       - name: Login to Container Registry
+        # Push cross-org nach vfeeg-development/* (Development-Tier, ADR-0005).
+        # GITHUB_TOKEN ist auf eegfaktura/* beschraenkt — daher der Classic-PAT
+        # VFEEG_DEV_PUSH_PAT (write:packages auf vfeeg-development).
         # PR-Builds duerfen nicht pushen — Login-Step nur bei push.
         if: github.event_name == 'push'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.VFEEG_DEV_PUSH_PAT }}
 
       - name: Build (PR via Docker/publishLocal) / Build+Push (push via Docker/publish)
         run: |
-          # dockerUsername override: build.sbt setzt vfeeg-development, aber
-          # der GITHUB_TOKEN dieses Repos darf nur in eegfaktura/* pushen.
-          # sbt-native-packager pusht alle aliases (Default + dockerAliases).
+          # Kein dockerUsername-Override mehr: build.sbt setzt bereits
+          # dockerUsername := Some("vfeeg-development") und die dockerAliases
+          # pushen eeg-registration-backend ebenfalls nach vfeeg-development.
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            sbt 'set dockerUsername := Some("eegfaktura")' Docker/publishLocal
+            sbt Docker/publishLocal
           else
-            sbt 'set dockerUsername := Some("eegfaktura")' Docker/publish
+            sbt Docker/publish
           fi
 
   # Triggert das Platform-Repo, damit es den Cluster aktualisiert.
