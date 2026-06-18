@@ -1,9 +1,9 @@
 package at.ourproject.services
 
-import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
-import akka.grpc.GrpcClientSettings
-import akka.util.Timeout
+import org.apache.pekko.actor.typed.scaladsl.Behaviors
+import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
+import org.apache.pekko.grpc.GrpcClientSettings
+import org.apache.pekko.util.Timeout
 import at.ourproject.admin.{AdminEegServiceClient, UpdateEegRequest}
 import at.ourproject.routes.{UpdateClassEnum, UpdateMessage}
 

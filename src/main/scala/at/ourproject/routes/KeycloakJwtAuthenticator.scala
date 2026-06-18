@@ -1,6 +1,6 @@
 package at.ourproject.routes
 
-import akka.http.scaladsl.server.directives.Credentials
+import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import com.nimbusds.jose.{JOSEException, JWSAlgorithm}
 import com.nimbusds.jose.jwk.source.RemoteJWKSet
 import com.nimbusds.jose.proc.{BadJOSEException, JWSVerificationKeySelector, SecurityContext}
