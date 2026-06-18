@@ -1,9 +1,9 @@
 package at.ourproject
 
-import akka.actor.typed.ActorSystem
-import akka.actor.typed.scaladsl.Behaviors
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.directives.Credentials
+import org.apache.pekko.actor.typed.ActorSystem
+import org.apache.pekko.actor.typed.scaladsl.Behaviors
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import at.ourproject.dao.{Dao, DbInstance}
 import at.ourproject.keycloak.KeycloakClient
 import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, KeycloakJwtAuthenticator, RegistrationRoutes}

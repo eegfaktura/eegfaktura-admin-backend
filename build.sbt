@@ -8,17 +8,17 @@ ThisBuild / scalaVersion := "2.13.9"
 val dockerVersion      = "0.2.11"
 
 lazy val root = (project in file("."))
-  .enablePlugins(AkkaGrpcPlugin)
+  .enablePlugins(PekkoGrpcPlugin)
   .enablePlugins(JavaAppPackaging)
   .settings(dockerSettings)
   .settings(
     name := "eegfaktura-registration",
-    resolvers += "Akka library repository" at "https://repo.akka.io/maven",
+    // Pekko ist auf Maven Central, kein Lightbend-Resolver mehr noetig
     libraryDependencies ++= Seq(
         keycloakCore, keycloakAdminClient, keycloakAdapter,
         sttpClient3,
         /*slf4j,*/ scalaLogging, logback,
-        akka, akkaStream, akkaHttp,
+        akka, akkaStream, akkaHttp, pekkoSlf4j,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
         slick, slickHikaricp, postgresLib, nimbusdsJwt
     ),
