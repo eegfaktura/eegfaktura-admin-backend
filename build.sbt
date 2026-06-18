@@ -18,7 +18,7 @@ lazy val root = (project in file("."))
         keycloakCore, keycloakAdminClient, keycloakAdapter,
         sttpClient3,
         /*slf4j,*/ scalaLogging, logback,
-        akka, akkaStream, akkaHttp, pekkoSlf4j,
+        akka, akkaStream, akkaHttp, pekkoSlf4j, pekkoDiscovery,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
         slick, slickHikaricp, postgresLib, nimbusdsJwt
     ),

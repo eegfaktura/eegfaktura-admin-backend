@@ -51,6 +51,10 @@ object Dependencies {
   lazy val akkaHttpCirce = "com.github.pjfanning" %% "pekko-http-circe" % "3.1.0"
   // pekko-slf4j wird via application.conf als logger geladen, deshalb explizit
   lazy val pekkoSlf4j = "org.apache.pekko" %% "pekko-slf4j" % PekkoVersion
+  // pekko-discovery explizit auf PekkoVersion pinnen: pekko-grpc-sbt-plugin
+  // 1.1.1 zieht transitiv pekko-discovery 1.1.2, was mit pekko 1.2.x als
+  // Mixed-Versioning zur Laufzeit crasht (IllegalStateException beim Start).
+  lazy val pekkoDiscovery = "org.apache.pekko" %% "pekko-discovery" % PekkoVersion
   lazy val circeCore = "io.circe" %% "circe-core" % CirceVersion
   lazy val circeGeneric = "io.circe" %% "circe-generic" % CirceVersion
   lazy val circeParser =  "io.circe" %% "circe-parser" % CirceVersion
