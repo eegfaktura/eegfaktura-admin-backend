@@ -57,8 +57,8 @@ lazy val dockerSettings = Seq(
     val name = packageName.value
 
     Seq(
-      DockerAlias(repo, Some("eegfaktura"), name, Some(dockerVersion)),
-      DockerAlias(repo, Some("eegfaktura"), name, Some("latest")),
+      DockerAlias(repo, Some("vfeeg-development"), name, Some(dockerVersion)),
+      DockerAlias(repo, Some("vfeeg-development"), name, Some("latest")),
     )
   }
 
