@@ -31,9 +31,19 @@ object Registration extends App {
     val node = context.spawnAnonymous(RegisterService(keycloakClient))
     val masterNode = context.spawnAnonymous(AdminService())
 
+    val issuer = s"${keycloakJWTConfig.auth.url.stripSuffix("/")}/realms/${keycloakJWTConfig.auth.realm}"
+    // JWKS-Fetch-URL optional getrennt vom Issuer: in Prod muss der Issuer die
+    // oeffentliche Keycloak-URL sein (iss-Check), der JWKS-Fetch aber cluster-
+    // intern laufen (LB-Hairpin + ingress-TLS). Ohne Override = aus dem Issuer
+    // abgeleitet (bisheriges Verhalten, Dev unveraendert).
+    val jwksUrl =
+      if (KeycloakConfig.config.hasPath("keycloakAuthenticator.jwksUrl"))
+        KeycloakConfig.config.getString("keycloakAuthenticator.jwksUrl")
+      else s"$issuer/protocol/openid-connect/certs"
+
     val authenticator = new KeycloakJwtAuthenticator(
-      s"${keycloakJWTConfig.auth.url.stripSuffix("/")}/realms/${keycloakJWTConfig.auth.realm}/protocol/openid-connect/certs",
-      s"${keycloakJWTConfig.auth.url.stripSuffix("/")}/realms/${keycloakJWTConfig.auth.realm}",
+      jwksUrl,
+      issuer,
       keycloakJWTConfig.auth.clientId
     )
 
