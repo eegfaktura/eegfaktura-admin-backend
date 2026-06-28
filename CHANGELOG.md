@@ -1,23 +1,23 @@
 # Changelog
 
-Alle nennenswerten Änderungen an **eegfaktura-admin-backend (Scala/Pekko Admin-API)** werden hier dokumentiert.
+All notable changes to **eegfaktura-admin-backend (Scala/Pekko admin API)** are documented here.
 
-Das Format orientiert sich an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/),
-die Versionierung an den Deployment-Release-Tags. Detail-Diffs bleiben im `git log`;
-dieser Changelog hebt die für Überblick und Betrieb relevanten Änderungen hervor.
+The format is based on [Keep a Changelog](https://keepachangelog.com/), and
+versioning follows the deployment release tags. Detailed diffs stay in the `git log`;
+this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
 ## [1.0.0] – 2026-06-28
 
-Erster vollständig aus öffentlichem Quellcode gebauter Produktiv-Release.
+First production release built entirely from public source.
 
 ### Fixed
-- Auth: JWKS-Abruf-URL kann getrennt vom Issuer konfiguriert werden. (#7)
-- Abhängigkeiten: `pekko-discovery` auf 1.2.1 gepinnt (behebt Mixed-Versioning-Crash). (#5)
+- Auth: the JWKS fetch URL can be configured separately from the issuer. (#7)
+- Dependencies: pinned `pekko-discovery` to 1.2.1 (fixes a mixed-versioning crash). (#5)
 
 ### Changed
-- Migration von Akka auf Apache Pekko (löst BSL-Lizenz-Blockade). (#2)
-- CI: Push in den Development-Tier der Registry mit Auto-Rollout-Bridge
+- Migrated from Akka to Apache Pekko (resolves the BSL license block). (#2)
+- CI: push to the registry's development tier with an auto-rollout bridge
   (dispatch-deploy). (#4)
-- AGPL-3.0-Lizenz ergänzt; README mit Service-Überblick und Tech-Stack. (#3, #6)
+- Added AGPL-3.0 license; README with service overview and tech stack. (#3, #6)
