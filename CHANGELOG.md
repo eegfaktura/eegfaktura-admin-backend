@@ -8,6 +8,12 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.0.1] – 2026-06-30
+
+### Changed
+- CI: Snyk Code (SAST) workflow + SARIF upload to code scanning. (#10, #11)
+- Docs: add and translate CHANGELOG. (#8, #9)
+
 ## [1.0.0] – 2026-06-28
 
 First production release built entirely from public source.
