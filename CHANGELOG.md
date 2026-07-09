@@ -8,6 +8,14 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Added
+- Ops route `POST /admin/energystore/rawdata/delete` to remove the raw energy data of a single
+  metering point within a time range (`{tenant, ecId, meteringPoint, start, end, dryRun}`). Gated on
+  the `superuser` realm role; forwards the operator's bearer + `tenant` header to energystore's
+  `POST /eeg/v2/{ecId}/rawdata/delete` (via sttp), so energystore's superuser-aware middleware
+  authorizes the cross-tenant call. `dryRun` previews the affected amount without writing. New config
+  `app.energystore.url` (env `ENERGYSTORE_URL`).
+
 ### Changed
 - CI: Preview-Deployments (ADR-0007) — Push auf `preview/**` baut+deployt on-demand in die Dev-Zone (sha-pinned, kein `:latest`), Auto-Reset bei Branch-Delete.
 
