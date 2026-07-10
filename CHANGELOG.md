@@ -16,6 +16,13 @@ this changelog highlights the changes relevant for overview and operations.
   authorizes the cross-tenant call. `dryRun` previews the affected amount without writing. New config
   `app.energystore.url` (env `ENERGYSTORE_URL`).
 
+### Fixed
+- CI: preview-deploys were broken (ImagePullBackOff) — the sbt-native-packager build only pushes
+  `:latest` + `:<version>`, but `dispatch-preview-deploy` pins `:sha-<short>`, which never existed.
+  The build now also tags the freshly built image with `sha-<short>` (via `docker buildx imagetools
+  create`) so the pinned preview-deploy resolves. (Known remaining follow-up: preview builds still
+  push `:latest` — sbt `dockerAliases` — which can transiently pollute the tag the default deploy uses.)
+
 ### Changed
 - CI: Preview-Deployments (ADR-0007) — Push auf `preview/**` baut+deployt on-demand in die Dev-Zone (sha-pinned, kein `:latest`), Auto-Reset bei Branch-Delete.
 
