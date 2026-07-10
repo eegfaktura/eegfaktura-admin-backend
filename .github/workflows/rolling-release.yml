@@ -97,6 +97,17 @@ jobs:
             sbt Docker/publish
           fi
 
+      - name: Add sha-<short> tag for pinned (preview) deploys
+        # sbt-native-packager pusht nur :latest + :<version>, aber der
+        # dispatch-preview-deploy pinnt :sha-<short7>. Ohne diesen Tag laeuft
+        # jeder Preview-Deploy in ImagePullBackOff. Wir taggen das gerade
+        # gebaute Image (== :latest) zusaetzlich mit sha-<short7> (kein Pull,
+        # nutzt den docker-login-Auth von oben). Nur bei push (nie bei PRs).
+        if: github.event_name == 'push'
+        run: |
+          IMG=ghcr.io/vfeeg-development/eeg-registration-backend
+          docker buildx imagetools create -t "$IMG:sha-${GITHUB_SHA:0:7}" "$IMG:latest"
+
   # Triggert das Platform-Repo, damit es den Cluster aktualisiert.
   # Laeuft nur bei push to default-branch (master/main), nicht bei PRs oder Tags.
   # Vorbedingung: PLATFORM_DEPLOY_PAT-Secret muss im Source-Repo gesetzt sein
