@@ -50,7 +50,14 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
 
   val log: Logger = system.log
 
-  private val energystoreUrl: String = system.settings.config.getString("app.energystore.url")
+  // Resolve the energystore base URL defensively: the mounted config (ConfigMap) may not
+  // carry app.energystore, so fall back to the ENERGYSTORE_URL env var (then a local default)
+  // instead of hard-crashing the service on a missing key.
+  private val energystoreUrl: String = {
+    val c = system.settings.config
+    if (c.hasPath("app.energystore.url")) c.getString("app.energystore.url")
+    else sys.env.getOrElse("ENERGYSTORE_URL", "http://localhost:8080")
+  }
   private val energystoreBackend = HttpURLConnectionBackend()
 
   private def hasRealmRole(user: AuthenticatedUser, role: String): Boolean =
