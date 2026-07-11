@@ -8,13 +8,14 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
-### Added
-- Ops route `POST /admin/energystore/rawdata/delete` to remove the raw energy data of a single
-  metering point within a time range (`{tenant, ecId, meteringPoint, start, end, dryRun}`). Gated on
-  the `superuser` realm role; forwards the operator's bearer + `tenant` header to energystore's
-  `POST /eeg/v2/{ecId}/rawdata/delete` (via sttp), so energystore's superuser-aware middleware
-  authorizes the cross-tenant call. `dryRun` previews the affected amount without writing. New config
-  `app.energystore.url` (env `ENERGYSTORE_URL`).
+### Removed
+- Ops route `POST /admin/energystore/rawdata/delete` (never released) and its energystore forward
+  (sttp), the `app.energystore.url` / `ENERGYSTORE_URL` config, and the `superuser` role check that
+  went with it. The admin frontend now calls energystore directly (same-origin via the admin host's
+  `/energystore` route) — energystore already enforces the `superuser` role on that endpoint. This
+  removes the only backend-to-backend REST hop from admin-backend (restoring the "web orchestrates;
+  no sync backend↔backend REST" topology) and the aud/config coupling it required. The
+  `ENERGYSTORE_URL` env var can be dropped from the admin-backend deployment.
 
 ### Fixed
 - CI: preview-deploys were broken (ImagePullBackOff) — the sbt-native-packager build only pushes
