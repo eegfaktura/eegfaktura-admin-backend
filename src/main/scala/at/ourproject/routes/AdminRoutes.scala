@@ -45,6 +45,7 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
   private val adminRoutes = concat(
     pathPrefix("admin") {
       authenticateOAuth2Async(realm = "keycloak", authenticator = akkaAuthenticator) { user: AuthenticatedUser =>
+        RoleDirectives.requireSuperuser(user) {
         path("master" / "update") {
           pathEndOrSingleSlash {
             post {
@@ -99,6 +100,7 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
             }
           }
         }
+              }
       }
     }
   )

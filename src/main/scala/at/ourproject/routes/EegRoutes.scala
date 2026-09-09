@@ -27,6 +27,7 @@ class EegRoutes (daos: Dao, akkaAuthenticator: Credentials => Future[Option[Auth
   private val eegRoutes = {
       pathPrefix("vfeeg") {
         authenticateOAuth2Async(realm = "keycloak", authenticator = akkaAuthenticator) { user: AuthenticatedUser =>
+          RoleDirectives.requireSuperuser(user) {
           path("eeg") {
             get {
               complete(daos.eegRepository.getAll)
@@ -44,6 +45,7 @@ class EegRoutes (daos: Dao, akkaAuthenticator: Credentials => Future[Option[Auth
               complete(daos.operatorRepository.getAll)
             }
           }
+                  }
         }
       }
   }
