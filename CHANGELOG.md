@@ -8,6 +8,8 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.0.3] – 2026-09-09
+
 ### Security
 - The admin API now requires the `superuser` realm role on all three route prefixes
   (`admin`, `vfeeg`, `eeg`). Previously they were guarded only by `authenticateOAuth2Async`,
