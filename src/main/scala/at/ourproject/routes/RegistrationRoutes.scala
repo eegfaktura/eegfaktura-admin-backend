@@ -27,6 +27,7 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
     concat(
       pathPrefix("eeg") {
         authenticateOAuth2Async(realm = "keycloak", authenticator = akkaAuthenticator) { user: AuthenticatedUser =>
+          RoleDirectives.requireSuperuser(user) {
           path("register") {
             pathEndOrSingleSlash {
               post {
@@ -79,6 +80,7 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
                 }
               }
             }
+                  }
         }
       }
     )
