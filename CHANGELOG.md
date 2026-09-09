@@ -8,6 +8,26 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Security
+- The admin API now requires the `superuser` realm role on all three route prefixes
+  (`admin`, `vfeeg`, `eeg`). Previously they were guarded only by `authenticateOAuth2Async`,
+  i.e. by "is signed in at all" — and the Keycloak client backing the admin portal is a public
+  client with the standard browser flow, so any account in the realm could obtain a token for
+  it. Only one route (the raw-data delete) checked the role.
+
+  This service is an operations tool, not a tenant-facing API. A single directive
+  (`RoleDirectives.requireSuperuser`) now gates every route, and it answers 403 with
+  `{"error":"superuser role required"}` rather than a bare status, so the caller can tell what
+  is missing.
+
+  No separate tenant check was added, deliberately: the master-data routes take the tenant from
+  the request body, which is exactly the cross-tenant capability the superuser role is meant to
+  have. With the role enforced, no other caller reaches them.
+
+  **Operational note:** EEG registration lives under the `eeg` prefix and is therefore covered
+  too. Whoever onboards new communities needs the `superuser` role, and after assigning it, a
+  fresh sign-in — roles are frozen into the token when it is issued.
+
 ## [1.0.2] – 2026-09-07
 
 ### Changed
