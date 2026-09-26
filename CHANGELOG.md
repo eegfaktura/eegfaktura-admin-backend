@@ -14,6 +14,18 @@ this changelog highlights the changes relevant for overview and operations.
   to that branch's `sha-…` image. Previously only the default branch, tags and `preview/**`
   produced an image at all. The environment itself is still provisioned manually.
 
+### Fixed
+- The Docker build now publishes a `sha-<short>` tag. Unlike most services, this repo is
+  packaged by sbt-native-packager rather than `docker/metadata-action`, which never produced
+  that tag — while both the preview deploy (ADR-0007) and the new env deploy (ADR-0008) pin
+  exactly it, so every such deploy would have ended in `ImagePullBackOff`. Found on
+  2026-09-26 when the same defect hit eegfaktura-eda-xp, the other sbt-packaged service.
+- A build from a `preview/**` or `env/**` branch no longer overwrites the moving tags
+  `latest` and `0.2.11` in the development tier (`dockerUpdateLatest` is off for those
+  builds). The dev zone pulls `eeg-registration-backend:latest`, so a feature build would
+  silently have become the dev zone's next image. Default-branch and tag builds are
+  unchanged.
+
 ## [1.0.3] – 2026-09-09
 
 ### Security
