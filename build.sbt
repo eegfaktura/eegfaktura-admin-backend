@@ -7,6 +7,13 @@ ThisBuild / scalaVersion := "2.13.9"
 
 val dockerVersion      = "0.2.11"
 
+// `latest` (und das Versions-Tag) sind wandernd: die Dev-Zone zieht `latest`. Ein Build aus
+// einem preview/**- oder env/**-Branch darf sie deshalb NICHT ueberschreiben, sonst laeuft
+// die Dev-Zone unbemerkt auf einem Feature-Stand. Diese Builds pushen nur ihr `sha-<short>`.
+val ciRef = sys.env.getOrElse("GITHUB_REF", "")
+val isFeatureBranchBuild =
+  ciRef.startsWith("refs/heads/preview/") || ciRef.startsWith("refs/heads/env/")
+
 lazy val root = (project in file("."))
   .enablePlugins(PekkoGrpcPlugin)
   .enablePlugins(JavaAppPackaging)
@@ -39,7 +46,7 @@ lazy val dockerSettings = Seq(
   dockerUsername := Some("vfeeg-development"),
   packageName := "eeg-registration-backend",
   maintainer := "vfeeg <vfeeg.org>",
-  dockerUpdateLatest := true,
+  dockerUpdateLatest := !isFeatureBranchBuild,
   dockerExposedVolumes := Seq("/conf"),
   dockerExposedPorts := Seq(8085),
   dockerCommands := dockerCommands.value.filterNot {
@@ -56,10 +63,22 @@ lazy val dockerSettings = Seq(
     val repo = dockerRepository.value
     val name = packageName.value
 
-    Seq(
-      DockerAlias(repo, Some("vfeeg-development"), name, Some(dockerVersion)),
-      DockerAlias(repo, Some("vfeeg-development"), name, Some("latest")),
-    )
+    // Die uebrigen Repos erzeugen ihre Image-Tags ueber docker/metadata-action und bekommen
+    // dadurch immer ein eindeutiges `sha-<short>`. Hier baut sbt-native-packager, das dieses
+    // Tag nicht kennt — Preview- und Env-Deploy (ADR-0007/0008) pinnen aber genau darauf und
+    // liefen deshalb in ImagePullBackOff. Also selbst erzeugen.
+    val shaAlias = sys.env.get("GITHUB_SHA").filter(_.nonEmpty).toSeq.map { sha =>
+      DockerAlias(repo, Some("vfeeg-development"), name, Some("sha-" + sha.take(7)))
+    }
+
+    val movingAliases =
+      if (isFeatureBranchBuild) Seq.empty
+      else Seq(
+        DockerAlias(repo, Some("vfeeg-development"), name, Some(dockerVersion)),
+        DockerAlias(repo, Some("vfeeg-development"), name, Some("latest")),
+      )
+
+    movingAliases ++ shaAlias
   }
 
 )
