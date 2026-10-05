@@ -8,6 +8,15 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Security
+- New Keycloak users no longer get a fixed fallback password when the request carries
+  none, and configuring an existing user without credentials no longer assigns one
+  either. Both now get a random temporary password and a Keycloak mail to set their own
+  (`UPDATE_PASSWORD`); if the mail cannot be sent, the operator sets the password in the
+  Keycloak console. If the credentials of an existing user cannot be read, nothing is
+  changed — previously that error path assigned the fallback password even to users who
+  already had one.
+
 ### Added
 - CI builds `env/**` branches and deploys the resulting image into the matching feature
   environment (ADR-0008): a push to `env/<name>` pins this service in namespace `env-<name>`
