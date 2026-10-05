@@ -80,12 +80,16 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       val passwordCred = new CredentialRepresentation()
       passwordCred.setTemporary(true)
       passwordCred.setType(CredentialRepresentation.PASSWORD)
-      passwordCred.setValue(user.password.getOrElse("EEGFaktura#123"))
+      // No fixed fallback password: without a password from the request the
+      // user gets a random one and a mail to set their own.
+      val givenPassword = user.password.filter(_.nonEmpty)
+      passwordCred.setValue(givenPassword.getOrElse(KeycloakClient.randomPassword()))
 
       log.info("Apply Password Credentials ...")
       val userResource = users.get(userId)
       // Set password credential
       userResource.resetPassword(passwordCred)
+      if (givenPassword.isEmpty) sendUpdatePasswordMail(userResource, user.email)
 
       log.info("Apply user groups ...")
       // Join groups to user
@@ -186,11 +190,17 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
         val groups = userResource.groups()
         userGroups.foreach(g => if (!groups.contains(g)) userResource.joinGroup(g.getId))
 
+        // Only a user without any credential gets one: a random temporary
+        // password plus a mail to set their own. If the credentials cannot be
+        // read, nothing is changed — an existing password must never be replaced.
         try {
           val creds = userResource.credentials().asScala.toList
-          if (creds.isEmpty) addCredentials(userResource = userResource, password = "Start!2025")
+          if (creds.isEmpty) {
+            addCredentials(userResource = userResource, password = KeycloakClient.randomPassword())
+            sendUpdatePasswordMail(userResource, user.getEmail)
+          }
         } catch {
-          case _: Throwable => addCredentials(userResource = userResource, password = "Start!2025")
+          case e: Throwable => log.warn(s"Could not read credentials of ${user.getEmail}, left unchanged: ${e.getMessage}")
         }
         userResource.update(addTenantToUserResource(user, tenant.toUpperCase()))
       }
@@ -200,7 +210,20 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
   }
 
   /**
-   * Add a standard password credentials to the user resource
+   * Ask Keycloak to mail the user a link to set their own password. A failure
+   * (e.g. no SMTP in the realm) is only logged: the operator then sets the
+   * password in the Keycloak console.
+   */
+  private def sendUpdatePasswordMail(userResource: UserResource, email: String): Unit = {
+    try {
+      userResource.executeActionsEmail(List("UPDATE_PASSWORD").asJava)
+    } catch {
+      case e: Throwable => log.warn(s"Could not send the set-password mail to $email: ${e.getMessage}")
+    }
+  }
+
+  /**
+   * Add a temporary password credential to the user resource
    *
    * @param userResource User resource to be changed
    * @param password Temporal password for the specified user
@@ -257,6 +280,15 @@ object KeycloakClient {
   implicit val backend: SttpBackend[Identity, Any] = HttpURLConnectionBackend()
 
   case class User(username: Option[String], firstName: String, lastName: String, email: String, password: Option[String])
+
+  private val secureRandom = new java.security.SecureRandom()
+
+  /** Random temporary password; one character of each class for common realm password policies. */
+  def randomPassword(): String = {
+    val bytes = new Array[Byte](24)
+    secureRandom.nextBytes(bytes)
+    "Aa1!" + java.util.Base64.getUrlEncoder.withoutPadding.encodeToString(bytes)
+  }
 
   def apply(config: Configuration): KeycloakClient = {
     val keycloakAdminClient = KeycloakBuilder.builder()
