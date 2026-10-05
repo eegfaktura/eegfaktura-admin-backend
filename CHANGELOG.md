@@ -8,6 +8,8 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.0.4] – 2026-10-05
+
 ### Security
 - New Keycloak users no longer get a fixed fallback password when the request carries
   none, and configuring an existing user without credentials no longer assigns one
