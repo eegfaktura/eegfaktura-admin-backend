@@ -8,6 +8,9 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Removed
+- An unused spreadsheet in `src/main/resources` that was packaged into the image.
+
 ## [1.0.4] – 2026-10-05
 
 ### Security
