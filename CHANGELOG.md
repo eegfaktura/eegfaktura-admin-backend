@@ -8,6 +8,24 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Security
+- No credentials or personal data in the logs of the registration and Keycloak paths: creating
+  a Keycloak user no longer logs the initial password, registering an EEG logs only RC number
+  and tenant instead of the whole request (bank and contact data), and the Keycloak client
+  logs the user id instead of the e-mail address. Error messages of a failed user creation no
+  longer contain the e-mail address either.
+
+### Fixed
+- Creating a Keycloak user without an explicit username no longer fails for last names shorter
+  than six characters (or first names shorter than two); the generated username takes up to six
+  and up to two characters.
+- `POST /eeg/ponton` reports status 200 in the reply after a successful registration;
+  it reported 500 even on success.
+- A Keycloak error in `GET /eeg/addTenant` no longer stops the registration service, after which
+  every `/eeg/*` request timed out until the pod restarted. The request now gets status 500 and
+  the service keeps running.
+- The test sources compile again (`RegisterServiceSpec` used an outdated model).
+
 ### Removed
 - An unused spreadsheet in `src/main/resources` that was packaged into the image.
 
