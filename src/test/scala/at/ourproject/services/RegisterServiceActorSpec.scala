@@ -5,7 +5,7 @@ import at.ourproject.admin.{AdminEegService, AdminEegServiceHandler, UpdateEegRe
 import at.ourproject.keycloak.KeycloakClient
 import at.ourproject.services.RegisterService._
 import com.typesafe.config.ConfigFactory
-import org.apache.pekko.actor.testkit.typed.scaladsl.{ActorTestKit, TestProbe}
+import org.apache.pekko.actor.testkit.typed.scaladsl.{ActorTestKit, LoggingTestKit, TestProbe}
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.{HttpRequest, HttpResponse}
@@ -114,6 +114,27 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       // the actor is still alive and answers the next request
       service ! AddTenantToUser("TE100002", "user@test.local", probe.ref)
       probe.expectMessage(10.seconds, AddTenantToUserResponse(500))
+    }
+  }
+
+  "RegisterService" should {
+    "keep running after an exception escapes a message" in {
+      val throwingKeycloak = new KeycloakClient(null, null) {
+        override def getUserId(email: String): Try[String] = Success("user-id")
+        override def addTenantToUser(userId: String, tenant: String): Unit = ()
+        override def findUserByTenant(tenant: String): Try[List[org.keycloak.representations.idm.UserRepresentation]] =
+          throw new RuntimeException("unexpected")
+      }
+      val service = testKit.spawn(RegisterService(throwingKeycloak))
+      val probe = testKit.createTestProbe[Command]()
+
+      LoggingTestKit.error[RuntimeException].expect {
+        service ! LookupUsersRequest("TE100002", probe.ref)
+      }(testKit.system)
+      probe.expectNoMessage(500.millis)
+
+      service ! AddTenantToUser("TE100002", "user@test.local", probe.ref)
+      probe.expectMessage(10.seconds, AddTenantToUserResponse(200))
     }
   }
 }

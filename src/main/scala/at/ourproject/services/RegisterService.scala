@@ -1,7 +1,7 @@
 package at.ourproject.services
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
+import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler, SupervisorStrategy}
 import org.apache.pekko.grpc.GrpcClientSettings
 import org.apache.pekko.util.Timeout
 import at.energydash.admin.{RegisterPontonRequest, RegisterPontonServiceClient}
@@ -141,7 +141,10 @@ object RegisterService {
 
 //      val userRepo = new SlickTenantUserRepository(dbConfig)
 
-      Behaviors.receiveMessage { message => {
+      // This is the only RegisterService actor: an exception escaping a message
+      // must not stop it. Resume keeps the behaviour and the gRPC clients; the
+      // actor holds no state that a failed message could leave inconsistent.
+      Behaviors.supervise(Behaviors.receiveMessage[Command] { message => {
         message match {
           case RegisterEeg(eeg, groups, replyTo) => {
             val userExists = keycloakClient.checkUserAlreadyExist(eeg.user.email)
@@ -270,7 +273,7 @@ object RegisterService {
         }
         Behaviors.same
       }
-      }
+      }).onFailure[Exception](SupervisorStrategy.resume)
     }
   }
 }
