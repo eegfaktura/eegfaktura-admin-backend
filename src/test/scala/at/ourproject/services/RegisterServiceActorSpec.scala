@@ -2,6 +2,7 @@ package at.ourproject.services
 
 import at.energydash.admin.{RegisterPontonRequest, RegisterPontonService, RegisterPontonServiceHandler, RegisteredPontonReply}
 import at.ourproject.admin.{AdminEegService, AdminEegServiceHandler, UpdateEegReply, UpdateEegRequest}
+import at.ourproject.keycloak.KeycloakClient
 import at.ourproject.services.RegisterService._
 import com.typesafe.config.ConfigFactory
 import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
@@ -13,6 +14,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import java.net.ServerSocket
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, Future}
+import scala.util.{Success, Try}
 
 class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
@@ -61,6 +63,24 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
         PontonInfo("te100002", "secret", "eda.test", None, None, PontonCommType.KEP), probe.ref)
 
       probe.expectMessage(10.seconds, PontonRegisterResponse(200, "registered"))
+    }
+  }
+
+  "AddTenantToUser" should {
+    "reply with an error and keep serving when Keycloak fails" in {
+      val failingKeycloak = new KeycloakClient(null, null) {
+        override def getUserId(email: String): Try[String] = Success("user-id")
+        override def addTenantToUser(userId: String, tenant: String): Unit = throw new RuntimeException("keycloak down")
+      }
+      val service = testKit.spawn(RegisterService(failingKeycloak))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! AddTenantToUser("TE100002", "user@test.local", probe.ref)
+      probe.expectMessage(10.seconds, AddTenantToUserResponse(500))
+
+      // the actor is still alive and answers the next request
+      service ! AddTenantToUser("TE100002", "user@test.local", probe.ref)
+      probe.expectMessage(10.seconds, AddTenantToUserResponse(500))
     }
   }
 }

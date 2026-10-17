@@ -14,7 +14,7 @@ import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 object GridAreaType extends Enumeration {
   type GridArea = Value
@@ -235,8 +235,12 @@ object RegisterService {
           case AddTenantToUser(tenant, email, replyTo) =>
             keycloakClient.getUserId(email) match {
               case Success(id) =>
-                keycloakClient.addTenantToUser(id, tenant)
-                replyTo ! AddTenantToUserResponse(200)
+                Try(keycloakClient.addTenantToUser(id, tenant)) match {
+                  case Success(_) => replyTo ! AddTenantToUserResponse(200)
+                  case Failure(e) =>
+                    context.log.error(s"Adding tenant ${tenant.toUpperCase()} to user $id failed: ${e.getMessage}")
+                    replyTo ! AddTenantToUserResponse(500)
+                }
               case _ => replyTo ! AddTenantToUserResponse(500)
             }
 
