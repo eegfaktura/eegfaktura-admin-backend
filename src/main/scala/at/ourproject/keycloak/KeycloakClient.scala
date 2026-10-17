@@ -58,6 +58,10 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
   def buildUsername(firstname: String, lastname: String): String =
     s"${normalizeName(lastname).take(6)}${firstname.take(2)}"
 
+  /** Username for an existing user without one: first name plus up to 2 characters of the last name. */
+  def fallbackUsername(firstname: String, lastname: String): String =
+    s"$firstname${lastname.take(2)}"
+
   def createUser(user: User, rcNumber: String, userGroups: List[GroupRepresentation]): Unit = {
     val realm = realmResource(keycloakAdminClient)
     val users = usersResource(realm)
@@ -185,7 +189,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
 
         val userName = user.getUsername
         if (userName == null || userName.isEmpty) {
-          user.setUsername(s"${userInfo.firstname}${userInfo.lastname.subSequence(0, 2)}")
+          user.setUsername(fallbackUsername(userInfo.firstname, userInfo.lastname))
           log.debug("Update User Username")
         }
 

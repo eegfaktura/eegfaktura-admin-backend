@@ -25,4 +25,14 @@ class KeycloakClientSpec extends AnyWordSpecLike with Matchers {
       client.buildUsername("A", "Huber") shouldBe "HuberA"
     }
   }
+
+  "fallbackUsername" should {
+    "take the first name and 2 characters of the last name" in {
+      client.fallbackUsername("Maria", "Mustermann") shouldBe "MariaMu"
+    }
+
+    "not fail for a last name shorter than 2 characters" in {
+      client.fallbackUsername("Maria", "O") shouldBe "MariaO"
+    }
+  }
 }
