@@ -60,7 +60,7 @@ object Dependencies {
   lazy val circeParser =  "io.circe" %% "circe-parser" % CirceVersion
   lazy val slick = "com.typesafe.slick" %% "slick" % SlickVersion
   lazy val slickHikaricp = "com.typesafe.slick" %% "slick-hikaricp" % SlickVersion
-  lazy val postgresLib = "org.postgresql" % "postgresql" % "42.2.5"
+  lazy val postgresLib = "org.postgresql" % "postgresql" % "42.7.13"
   lazy val nimbusdsJwt = "com.nimbusds" % "nimbus-jose-jwt" % "9.31"
 //  "org.postgresql" % "postgresql" % "42.2.5"
 

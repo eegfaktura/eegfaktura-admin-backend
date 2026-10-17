@@ -18,6 +18,12 @@ this changelog highlights the changes relevant for overview and operations.
   `test-results-<job>`, `known-errors-<job>`) for a CI report collector; the secret scan keeps
   outcomes and counts only.
 
+### Security
+- PostgreSQL JDBC driver 42.2.5 → 42.7.13. The old driver has known CVEs; with our fixed
+  connection settings (server, database and credentials come from the configuration, no
+  user-controlled JDBC URL or connection properties) they are not exploitable, so this is a
+  hygiene update. Slick 3.5.1 / HikariCP are unchanged and work with 42.7.
+
 ## [1.0.5] – 2026-10-17
 
 ### Security
