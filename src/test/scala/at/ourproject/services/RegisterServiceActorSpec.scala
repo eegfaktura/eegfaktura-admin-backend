@@ -192,6 +192,23 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
     }
   }
 
+  "PontonRegister with type NONE" should {
+    "be rejected without calling Ponton or the backend" in {
+      PontonStub.registered.clear()
+      val updated = new java.util.concurrent.atomic.AtomicBoolean(false)
+      AdminStub.reply = () => { updated.set(true); Future.successful(UpdateEegReply(status = 201)) }
+      val service = testKit.spawn(RegisterService(null))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! PontonRegister("TE100002", "te100002",
+        PontonInfo("te100002", "secret", "eda.test", None, None, PontonCommType.NONE), probe.ref)
+
+      probe.expectMessage(10.seconds, PontonRegisterResponse(400, NoPontonSelected))
+      PontonStub.registered.size shouldBe 0
+      updated.get shouldBe false
+    }
+  }
+
   "AddTenantToUser" should {
     "reply 200 when Keycloak succeeds" in {
       val service = testKit.spawn(RegisterService(keycloak(() => ())))

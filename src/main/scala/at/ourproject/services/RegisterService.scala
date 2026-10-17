@@ -108,6 +108,7 @@ object RegisterService {
   /** Ponton is registered with KEP only; the mail transport is no longer used. */
   val KepCommType: String = PontonCommType.KEP.toString
   val MailNotSupported: String = "MAIL-Transport wird nicht mehr unterstützt"
+  val NoPontonSelected: String = "Keine Ponton-Anbindung gewählt"
 
   def registerPonton(eeg: Eeg, pontonClient: RegisterPontonServiceClient)(implicit ec: ExecutionContext): Future[Boolean]  = {
     eeg.pontonInfo.pontonCommType match {
@@ -239,6 +240,10 @@ object RegisterService {
 
           case PontonRegister(_, _, pontonInfo, replyTo) if pontonInfo.pontonCommType == PontonCommType.MAIL =>
             replyTo ! PontonRegisterResponse(400, MailNotSupported)
+
+          // NONE is no communication type for eda-xp: registering it would store "NONE" as type.
+          case PontonRegister(_, _, pontonInfo, replyTo) if pontonInfo.pontonCommType == PontonCommType.NONE =>
+            replyTo ! PontonRegisterResponse(400, NoPontonSelected)
 
           case PontonRegister(tenant, rcNumber, pontonInfo, replyTo) =>
             val pontonRequest = RegisterPontonRequest(rcNumber.toUpperCase(),
