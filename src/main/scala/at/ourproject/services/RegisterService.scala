@@ -171,7 +171,7 @@ object RegisterService {
               eeg.user.email, eeg.contact.web, eeg.contact.phone, eeg.online,
             )
 
-            context.log.info(s"Register new EEG ${request}")
+            context.log.info(s"Register new EEG ${request.rcNumber} (tenant ${request.tenant})")
 
             (for {
               eegReply <- eegClient.register(request).map(r => r.status == 201)

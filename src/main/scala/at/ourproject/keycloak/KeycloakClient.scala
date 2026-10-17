@@ -37,7 +37,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       val userResources = users.searchByEmail(email, true)
       userResources.get(0)
     } catch {
-      case e: Exception => throw new RuntimeException(s"No valid user found $email: ${e.getMessage}")
+      case e: Exception => throw new RuntimeException(s"No valid user found: ${e.getMessage}")
     }
   }
 
@@ -89,7 +89,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       val userResource = users.get(userId)
       // Set password credential
       userResource.resetPassword(passwordCred)
-      if (givenPassword.isEmpty) sendUpdatePasswordMail(userResource, user.email)
+      if (givenPassword.isEmpty) sendUpdatePasswordMail(userResource, userId)
 
       log.info("Apply user groups ...")
       // Join groups to user
@@ -104,7 +104,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
 //      users.get(userId).executeActionsEmail(List("UPDATE_PASSWORD", "VERIFY_EMAIL").asJava)
 
     } catch {
-      case e: Exception => throw new RuntimeException(s"Cannot create User ${user.email}: ${e.getMessage}")
+      case e: Exception => throw new RuntimeException(s"Cannot create User: ${e.getMessage}")
     }
   }
 
@@ -165,7 +165,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       if (userResource != null) {
         val user = userResource.toRepresentation
 
-        log.info(s"Configure Keycloak-User: ${user.getEmail}")
+        log.info(s"Configure Keycloak-User: $userId")
 
         user.setEmailVerified(true)
 
@@ -197,10 +197,10 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
           val creds = userResource.credentials().asScala.toList
           if (creds.isEmpty) {
             addCredentials(userResource = userResource, password = KeycloakClient.randomPassword())
-            sendUpdatePasswordMail(userResource, user.getEmail)
+            sendUpdatePasswordMail(userResource, userId)
           }
         } catch {
-          case e: Throwable => log.warn(s"Could not read credentials of ${user.getEmail}, left unchanged: ${e.getMessage}")
+          case e: Throwable => log.warn(s"Could not read credentials of user $userId, left unchanged: ${e.getMessage}")
         }
         userResource.update(addTenantToUserResource(user, tenant.toUpperCase()))
       }
@@ -214,11 +214,11 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
    * (e.g. no SMTP in the realm) is only logged: the operator then sets the
    * password in the Keycloak console.
    */
-  private def sendUpdatePasswordMail(userResource: UserResource, email: String): Unit = {
+  private def sendUpdatePasswordMail(userResource: UserResource, userId: String): Unit = {
     try {
       userResource.executeActionsEmail(List("UPDATE_PASSWORD").asJava)
     } catch {
-      case e: Throwable => log.warn(s"Could not send the set-password mail to $email: ${e.getMessage}")
+      case e: Throwable => log.warn(s"Could not send the set-password mail to user $userId: ${e.getMessage}")
     }
   }
 
@@ -266,7 +266,6 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
           throw new RuntimeException("No valid user found")
         }
         println(s"userResponse ${userResources.size()}")
-        println(s"userResponse ${userResources.get(0)}")
         userResources.asScala.toList
       } catch {
         case e: Exception => throw new RuntimeException(s"No valid user found with $tenant: ${e.getMessage}")
