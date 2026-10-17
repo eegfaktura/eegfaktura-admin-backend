@@ -15,6 +15,15 @@ this changelog highlights the changes relevant for overview and operations.
   logs the user id instead of the e-mail address. Error messages of a failed user creation no
   longer contain the e-mail address either.
 
+### Changed
+- The mail transport for Ponton is no longer supported: `POST /eeg/register` (online EEG) and
+  `POST /eeg/ponton` with `pontonCommType` `MAIL` are rejected with status 400
+  ("MAIL-Transport wird nicht mehr unterstützt") before anything is registered. `NONE` is
+  unchanged.
+- Log level defaults to `INFO` for the application loggers and for Pekko; both were `DEBUG` in
+  the packaged configuration. `LOG_LEVEL_APP` (new, `at.ourproject.*`) and `LOG_LEVEL` (Pekko)
+  switch `DEBUG` on per deployment.
+
 ### Fixed
 - Creating a Keycloak user without an explicit username no longer fails for last names shorter
   than six characters (or first names shorter than two); the generated username takes up to six
@@ -22,8 +31,12 @@ this changelog highlights the changes relevant for overview and operations.
   one-letter last names either.
 - `POST /eeg/ponton` reports status 200 in the reply only after a successful registration and
   EEG update (in the reply body; the admin UI does not show it yet); it reported 500 even on
-  success. If the backend rejects the EEG update, the reply
-  carries the backend's status and message instead of reporting success.
+  success. If the backend rejects the EEG update, the reply carries the backend's status and
+  message instead of reporting success.
+- Registering an online EEG at Ponton now sends the communication type `KEP` to eda-xp. The type
+  was missing, so eda-xp stored an empty type: it started a mail worker for the tenant and
+  ignored the tenant after a restart. Tenants already registered that way have to be corrected
+  in eda-xp separately.
 - A Keycloak error in `GET /eeg/addTenant` no longer stops the registration service, after which
   every `/eeg/*` request timed out until the pod restarted. The request now gets status 500. In
   addition, the registration service now resumes after any exception in a request, so one
@@ -32,6 +45,7 @@ this changelog highlights the changes relevant for overview and operations.
 - The test sources compile again (`RegisterServiceSpec` used an outdated model).
 
 ### Removed
+- The unused endpoint `GET /eeg/users` (no caller) and the code only it used.
 - An unused spreadsheet in `src/main/resources` that was packaged into the image.
 
 ## [1.0.4] – 2026-10-05
