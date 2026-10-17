@@ -111,12 +111,17 @@ object RegisterService {
 
   val log: Logger = LoggerFactory.getLogger(getClass)
 
+  /** Ponton is registered with KEP only; the mail transport is no longer used. */
+  val KepCommType: String = PontonCommType.KEP.toString
+  val MailNotSupported: String = "MAIL-Transport wird nicht mehr unterstützt"
+
   def registerPonton(eeg: Eeg, pontonClient: RegisterPontonServiceClient)(implicit ec: ExecutionContext): Future[Boolean]  = {
     eeg.pontonInfo.pontonCommType match {
       case PontonCommType.NONE => Future(true)
       case _ if eeg.online =>
         pontonClient.register(
-          RegisterPontonRequest(eeg.rcNumber.toUpperCase(), eeg.pontonInfo.username, eeg.pontonInfo.password, eeg.pontonInfo.domain)).map(r => r.status == 200)
+          RegisterPontonRequest(eeg.rcNumber.toUpperCase(), eeg.pontonInfo.username, eeg.pontonInfo.password, eeg.pontonInfo.domain,
+            pontonCommType = KepCommType)).map(r => r.status == 200)
       case _ => Future(true)
     }
   }
@@ -146,6 +151,9 @@ object RegisterService {
       // actor holds no state that a failed message could leave inconsistent.
       Behaviors.supervise(Behaviors.receiveMessage[Command] { message => {
         message match {
+          case RegisterEeg(eeg, _, replyTo) if eeg.online && eeg.pontonInfo.pontonCommType == PontonCommType.MAIL =>
+            replyTo ! EegRegisterError(400, MailNotSupported)
+
           case RegisterEeg(eeg, groups, replyTo) => {
             val userExists = keycloakClient.checkUserAlreadyExist(eeg.user.email)
             val request = RegisterEegRequest(eeg.tenant, eeg.rcNumber.toUpperCase(), eeg.communityId, eeg.name, eeg.description,
@@ -246,6 +254,9 @@ object RegisterService {
                 }
               case _ => replyTo ! AddTenantToUserResponse(500)
             }
+
+          case PontonRegister(_, _, pontonInfo, replyTo) if pontonInfo.pontonCommType == PontonCommType.MAIL =>
+            replyTo ! PontonRegisterResponse(400, MailNotSupported)
 
           case PontonRegister(tenant, rcNumber, pontonInfo, replyTo) =>
             val pontonRequest = RegisterPontonRequest(rcNumber.toUpperCase(),
