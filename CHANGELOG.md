@@ -8,6 +8,8 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.0.5] – 2026-10-17
+
 ### Security
 - No credentials or personal data in the logs of the registration and Keycloak paths: creating
   a Keycloak user no longer logs the initial password, registering an EEG logs only RC number
