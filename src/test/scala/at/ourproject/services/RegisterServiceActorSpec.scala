@@ -219,14 +219,13 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       val throwingKeycloak = new KeycloakClient(null, null) {
         override def getUserId(email: String): Try[String] = Success("user-id")
         override def addTenantToUser(userId: String, tenant: String): Unit = ()
-        override def findUserByTenant(tenant: String): Try[List[org.keycloak.representations.idm.UserRepresentation]] =
-          throw new RuntimeException("unexpected")
+        override def checkUserAlreadyExist(email: String): Boolean = throw new RuntimeException("unexpected")
       }
       val service = testKit.spawn(RegisterService(throwingKeycloak))
       val probe = testKit.createTestProbe[Command]()
 
       LoggingTestKit.error[RuntimeException].expect {
-        service ! LookupUsersRequest("TE100002", probe.ref)
+        service ! RegisterEeg(eeg(online = false, PontonCommType.NONE), Nil, probe.ref)
       }(testKit.system)
       probe.expectNoMessage(500.millis)
 

@@ -90,18 +90,12 @@ object RegisterService {
   case class Eeg(tenant: String, rcNumber: String, communityId: String, name: String, description: String, online: Boolean,
                  accountInfo: AccountInfo, businessInfo: BusinessInfo, grid: Grid, contact: Contact, pontonInfo: PontonInfo, user: UserInfo)
 
-  case class AuthorizedUser(firstname: String, lastname: String, email: String, tenant: String, roles: Option[List[String]])
-
   case class RegisterEeg(eeg: Eeg, groups: List[String], replyTo: ActorRef[Command]) extends Command
 
   case class EegRegistered(code: Int, message: String) extends ResponseCommand
   case class EegRegisterError(code: Int, message: String) extends ResponseCommand
 
   private case class RegisterParticipant(tenant: String, firstname: String, lastname: String, email: String) extends Command
-
-  case class LookupUsersRequest(tenant: String, replyTo: ActorRef[Command]) extends Command
-
-  case class LookupUsersResponse(users: List[AuthorizedUser]) extends Command
 
   case class AddTenantToUser(tenant: String, user: String, replyTo: ActorRef[Command]) extends Command
   case class AddTenantToUserResponse(status: Int) extends Command
@@ -127,7 +121,6 @@ object RegisterService {
   }
 
   def apply(keycloakClient: KeycloakClient): Behavior[Command] = {
-    import scala.jdk.CollectionConverters._
 //    val dbConfig = Db.getConfig
 
     Behaviors.setup[Command] { context =>
@@ -231,17 +224,6 @@ object RegisterService {
 //              lastname = lastname,
 //              email = email,
 //              invitedAt = LocalDateTime.now(), createdAt = LocalDateTime.now, status = 0))
-
-          case LookupUsersRequest(tenant, replyTo) =>
-            replyTo ! LookupUsersResponse(
-              keycloakClient.findUserByTenant(tenant) match {
-                case Success(l) =>
-                  l.filter(ku => ku.getFirstName != null).map(ku =>
-                    AuthorizedUser(ku.getFirstName, ku.getLastName, ku.getEmail, tenant, if (ku.getRealmRoles == null) None else Some(ku.getRealmRoles.asScala.toList)))
-                case Failure(e) =>
-                  context.log.error(e.getMessage)
-                  List.empty
-              })
 
           case AddTenantToUser(tenant, email, replyTo) =>
             keycloakClient.getUserId(email) match {

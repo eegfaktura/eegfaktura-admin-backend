@@ -259,25 +259,6 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
     val user = getUserRepresentation(email)
     user.getId
   }
-
-  def findUserByTenant(tenant: String): Try[List[UserRepresentation]] = {
-    val realm = realmResource(keycloakAdminClient)
-    val users = usersResource(realm)
-
-    Try {
-      try {
-//        val userResources = users.searchByAttributes(s"tenantId:${tenant}")
-        val userResources = users.list()
-        if (userResources == null) {
-          throw new RuntimeException("No valid user found")
-        }
-        println(s"userResponse ${userResources.size()}")
-        userResources.asScala.toList
-      } catch {
-        case e: Exception => throw new RuntimeException(s"No valid user found with $tenant: ${e.getMessage}")
-      }
-    }
-  }
 }
 
 
