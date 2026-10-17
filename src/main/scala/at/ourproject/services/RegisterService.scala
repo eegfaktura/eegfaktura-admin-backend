@@ -258,7 +258,9 @@ object RegisterService {
                   tenant = tenant,
                   value = Map("online" -> "true"),
                 )) onComplete {
-                  case Success(_) => replyTo ! PontonRegisterResponse(value.status, value.message)
+                  case Success(update) if update.status == 200 || update.status == 201 =>
+                    replyTo ! PontonRegisterResponse(value.status, value.message)
+                  case Success(update) => replyTo ! PontonRegisterResponse(update.status, update.message)
                   case Failure(ex) => replyTo ! PontonRegisterResponse(500, ex.getMessage)
                 }
               }

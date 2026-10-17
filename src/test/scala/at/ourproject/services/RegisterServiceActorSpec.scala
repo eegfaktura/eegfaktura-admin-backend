@@ -73,6 +73,26 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
 
       probe.expectMessage(10.seconds, PontonRegisterResponse(200, "registered"))
     }
+
+    "reply with the update status when the EEG update reports a failure" in {
+      AdminStub.reply = () => Future.successful(UpdateEegReply(status = 502, message = "update failed"))
+      val service = testKit.spawn(RegisterService(null))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! pontonRegister(probe)
+
+      probe.expectMessage(10.seconds, PontonRegisterResponse(502, "update failed"))
+    }
+
+    "reply 500 when the EEG update call fails" in {
+      AdminStub.reply = () => Future.failed(new RuntimeException("backend down"))
+      val service = testKit.spawn(RegisterService(null))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! pontonRegister(probe)
+
+      probe.expectMessageType[PontonRegisterResponse](10.seconds).status shouldBe 500
+    }
   }
 
   "AddTenantToUser" should {
