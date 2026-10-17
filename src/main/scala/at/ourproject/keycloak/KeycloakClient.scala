@@ -54,13 +54,15 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
     }
   }
 
+  /** Up to 6 characters of the normalised last name plus up to 2 of the first name. */
+  def buildUsername(firstname: String, lastname: String): String =
+    s"${normalizeName(lastname).take(6)}${firstname.take(2)}"
+
   def createUser(user: User, rcNumber: String, userGroups: List[GroupRepresentation]): Unit = {
     val realm = realmResource(keycloakAdminClient)
     val users = usersResource(realm)
 
     log.info(s"Create Keycloak-User for tenant ${rcNumber.toUpperCase()}")
-
-    val buildUsername = (firstname: String, lastname: String) => s"${normalizeName(lastname).substring(0,6)}${firstname.substring(0,2)}"
 
     try {
       val userRepresentation = new UserRepresentation()
