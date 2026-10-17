@@ -18,12 +18,16 @@ this changelog highlights the changes relevant for overview and operations.
 ### Fixed
 - Creating a Keycloak user without an explicit username no longer fails for last names shorter
   than six characters (or first names shorter than two); the generated username takes up to six
-  and up to two characters.
-- `POST /eeg/ponton` reports status 200 in the reply after a successful registration;
-  it reported 500 even on success.
+  and up to two characters. Configuring an existing user without a username no longer fails for
+  one-letter last names either.
+- `POST /eeg/ponton` reports status 200 in the reply only after a successful registration and
+  EEG update; it reported 500 even on success. If the backend rejects the EEG update, the reply
+  carries the backend's status and message instead of reporting success.
 - A Keycloak error in `GET /eeg/addTenant` no longer stops the registration service, after which
-  every `/eeg/*` request timed out until the pod restarted. The request now gets status 500 and
-  the service keeps running.
+  every `/eeg/*` request timed out until the pod restarted. The request now gets status 500. In
+  addition, the registration service now resumes after any exception in a request, so one
+  failing request no longer takes down all `/eeg/*` endpoints. This covers exceptions only: a
+  Keycloak call that hangs still blocks the service until it returns.
 - The test sources compile again (`RegisterServiceSpec` used an outdated model).
 
 ### Removed
