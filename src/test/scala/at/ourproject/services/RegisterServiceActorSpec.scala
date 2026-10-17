@@ -33,7 +33,7 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
   }
 
   private object AdminStub extends AdminEegService {
-    @volatile var reply: () => Future[UpdateEegReply] = () => Future.successful(UpdateEegReply(status = 200))
+    @volatile var reply: () => Future[UpdateEegReply] = () => Future.successful(UpdateEegReply(status = 201))
     override def updateValue(in: UpdateEegRequest): Future[UpdateEegReply] = reply()
   }
 
@@ -45,7 +45,9 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
 
   private val testKit = ActorTestKit(ConfigFactory.parseString(
     s"""
+       |pekko.grpc.client."register.RegisterEegService".host = "127.0.0.1"
        |pekko.grpc.client."register.RegisterEegService".port = $eegPort
+       |pekko.grpc.client."register.RegisterPontonService".host = "127.0.0.1"
        |pekko.grpc.client."register.RegisterPontonService".port = $pontonPort
        |""".stripMargin).withFallback(ConfigFactory.load()))
 
@@ -64,7 +66,17 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       PontonInfo("te100002", "secret", "eda.test", None, None, PontonCommType.KEP), probe.ref)
 
   "PontonRegister" should {
-    "reply with the success status when registration and update succeed" in {
+    "reply with the success status when registration and update succeed (update 201)" in {
+      AdminStub.reply = () => Future.successful(UpdateEegReply(status = 201))
+      val service = testKit.spawn(RegisterService(null))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! pontonRegister(probe)
+
+      probe.expectMessage(10.seconds, PontonRegisterResponse(200, "registered"))
+    }
+
+    "reply with the success status when the update answers 200" in {
       AdminStub.reply = () => Future.successful(UpdateEegReply(status = 200))
       val service = testKit.spawn(RegisterService(null))
       val probe = testKit.createTestProbe[Command]()

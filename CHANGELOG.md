@@ -21,7 +21,8 @@ this changelog highlights the changes relevant for overview and operations.
   and up to two characters. Configuring an existing user without a username no longer fails for
   one-letter last names either.
 - `POST /eeg/ponton` reports status 200 in the reply only after a successful registration and
-  EEG update; it reported 500 even on success. If the backend rejects the EEG update, the reply
+  EEG update (in the reply body; the admin UI does not show it yet); it reported 500 even on
+  success. If the backend rejects the EEG update, the reply
   carries the backend's status and message instead of reporting success.
 - A Keycloak error in `GET /eeg/addTenant` no longer stops the registration service, after which
   every `/eeg/*` request timed out until the pod restarted. The request now gets status 500. In
