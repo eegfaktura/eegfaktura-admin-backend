@@ -65,7 +65,8 @@ Environment variables (names only — never commit secret values):
 | `REGISTER_SERVICE_HOST_EEG` | gRPC host of `eegfaktura-backend` (EEG registration) |
 | `REGISTER_SERVICE_HOST_PONTON` | gRPC host of `eegfaktura-eda-xp` (Ponton/KEP registration) |
 | `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_DBNAME`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL connection |
-| `LOG_LEVEL` | log level |
+| `LOG_LEVEL` | Pekko log level (default `INFO`) |
+| `LOG_LEVEL_APP` | log level of the application loggers `at.ourproject.*` (default `INFO`); `DEBUG` only for troubleshooting |
 
 Exposed port: **8085** (HTTP/REST).
 

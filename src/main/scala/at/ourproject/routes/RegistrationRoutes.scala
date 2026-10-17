@@ -58,16 +58,6 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
                 }
               }
             } ~
-            path("users") {
-            get {
-              val processFuture: Future[RegisterService.LookupUsersResponse] = node.ask(
-                ref => RegisterService.LookupUsersRequest("RC100130", ref)
-              )(timeout, scheduler).mapTo[RegisterService.LookupUsersResponse]
-              onSuccess(processFuture) { res =>
-                complete(res)
-              }
-            }
-          } ~
             path("addTenant") {
               get {
                 parameters("tenant", "email") { (tenant, email) =>

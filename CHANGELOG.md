@@ -8,7 +8,48 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Security
+- No credentials or personal data in the logs of the registration and Keycloak paths: creating
+  a Keycloak user no longer logs the initial password, registering an EEG logs only RC number
+  and tenant instead of the whole request (bank and contact data), and the Keycloak client
+  logs the user id instead of the e-mail address. Error messages of a failed user creation no
+  longer contain the e-mail address either.
+
+### Changed
+- The mail transport for Ponton is no longer supported. With `pontonCommType` `MAIL`,
+  `POST /eeg/register` (online EEG) answers HTTP 400 and `POST /eeg/ponton` answers HTTP 200
+  with status 400 in the response body, both with "MAIL-Transport wird nicht mehr unterstützt"
+  and before anything is registered.
+- `POST /eeg/ponton` with `pontonCommType` `NONE` answers HTTP 200 with status 400 in the
+  response body ("Keine Ponton-Anbindung gewählt") and no longer registers `NONE` as the type
+  in eda-xp. `POST /eeg/register` with `NONE` is unchanged (no Ponton registration).
+- Log level defaults to `INFO` for the application loggers and for Pekko; both were `DEBUG` in
+  the packaged configuration. `LOG_LEVEL_APP` (new, `at.ourproject.*`) and `LOG_LEVEL` (Pekko)
+  switch `DEBUG` on per deployment.
+
+### Fixed
+- Creating a Keycloak user without an explicit username no longer fails for last names shorter
+  than six characters (or first names shorter than two); the generated username takes up to six
+  and up to two characters. Configuring an existing user without a username no longer fails for
+  one-letter last names either.
+- `POST /eeg/ponton` reports status 200 in the response body (HTTP status is always 200; the
+  admin UI does not show the body status yet) only after a successful registration and EEG
+  update; it reported 500 even on success. If the backend rejects the EEG update, the body
+  carries the backend's status and message instead of reporting success.
+- Registering an online EEG at Ponton now sends the communication type `KEP` to eda-xp. The type
+  was missing, so eda-xp stored an empty type: it started a mail worker for the tenant and
+  ignored the tenant after a restart. Tenants already registered that way have to be corrected
+  in eda-xp separately.
+- A Keycloak error in `GET /eeg/addTenant` no longer stops the registration service, after which
+  every `/eeg/*` request timed out until the pod restarted. The request now gets status 500 in
+  the response body (HTTP 200, as before). In
+  addition, the registration service now resumes after any exception in a request, so one
+  failing request no longer takes down all `/eeg/*` endpoints. This covers exceptions only: a
+  Keycloak call that hangs still blocks the service until it returns.
+- The test sources compile again (`RegisterServiceSpec` used an outdated model).
+
 ### Removed
+- The unused endpoint `GET /eeg/users` (no caller) and the code only it used.
 - An unused spreadsheet in `src/main/resources` that was packaged into the image.
 
 ## [1.0.4] – 2026-10-05

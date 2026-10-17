@@ -1,7 +1,7 @@
 package at.ourproject.services
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
+import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler, SupervisorStrategy}
 import org.apache.pekko.grpc.GrpcClientSettings
 import org.apache.pekko.util.Timeout
 import at.energydash.admin.{RegisterPontonRequest, RegisterPontonServiceClient}
@@ -14,7 +14,7 @@ import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 object GridAreaType extends Enumeration {
   type GridArea = Value
@@ -90,18 +90,12 @@ object RegisterService {
   case class Eeg(tenant: String, rcNumber: String, communityId: String, name: String, description: String, online: Boolean,
                  accountInfo: AccountInfo, businessInfo: BusinessInfo, grid: Grid, contact: Contact, pontonInfo: PontonInfo, user: UserInfo)
 
-  case class AuthorizedUser(firstname: String, lastname: String, email: String, tenant: String, roles: Option[List[String]])
-
   case class RegisterEeg(eeg: Eeg, groups: List[String], replyTo: ActorRef[Command]) extends Command
 
   case class EegRegistered(code: Int, message: String) extends ResponseCommand
   case class EegRegisterError(code: Int, message: String) extends ResponseCommand
 
   private case class RegisterParticipant(tenant: String, firstname: String, lastname: String, email: String) extends Command
-
-  case class LookupUsersRequest(tenant: String, replyTo: ActorRef[Command]) extends Command
-
-  case class LookupUsersResponse(users: List[AuthorizedUser]) extends Command
 
   case class AddTenantToUser(tenant: String, user: String, replyTo: ActorRef[Command]) extends Command
   case class AddTenantToUserResponse(status: Int) extends Command
@@ -111,18 +105,23 @@ object RegisterService {
 
   val log: Logger = LoggerFactory.getLogger(getClass)
 
+  /** Ponton is registered with KEP only; the mail transport is no longer used. */
+  val KepCommType: String = PontonCommType.KEP.toString
+  val MailNotSupported: String = "MAIL-Transport wird nicht mehr unterstützt"
+  val NoPontonSelected: String = "Keine Ponton-Anbindung gewählt"
+
   def registerPonton(eeg: Eeg, pontonClient: RegisterPontonServiceClient)(implicit ec: ExecutionContext): Future[Boolean]  = {
     eeg.pontonInfo.pontonCommType match {
       case PontonCommType.NONE => Future(true)
       case _ if eeg.online =>
         pontonClient.register(
-          RegisterPontonRequest(eeg.rcNumber.toUpperCase(), eeg.pontonInfo.username, eeg.pontonInfo.password, eeg.pontonInfo.domain)).map(r => r.status == 200)
+          RegisterPontonRequest(eeg.rcNumber.toUpperCase(), eeg.pontonInfo.username, eeg.pontonInfo.password, eeg.pontonInfo.domain,
+            pontonCommType = KepCommType)).map(r => r.status == 200)
       case _ => Future(true)
     }
   }
 
   def apply(keycloakClient: KeycloakClient): Behavior[Command] = {
-    import scala.jdk.CollectionConverters._
 //    val dbConfig = Db.getConfig
 
     Behaviors.setup[Command] { context =>
@@ -141,8 +140,14 @@ object RegisterService {
 
 //      val userRepo = new SlickTenantUserRepository(dbConfig)
 
-      Behaviors.receiveMessage { message => {
+      // This is the only RegisterService actor: an exception escaping a message
+      // must not stop it. Resume keeps the behaviour and the gRPC clients; the
+      // actor holds no state that a failed message could leave inconsistent.
+      Behaviors.supervise(Behaviors.receiveMessage[Command] { message => {
         message match {
+          case RegisterEeg(eeg, _, replyTo) if eeg.online && eeg.pontonInfo.pontonCommType == PontonCommType.MAIL =>
+            replyTo ! EegRegisterError(400, MailNotSupported)
+
           case RegisterEeg(eeg, groups, replyTo) => {
             val userExists = keycloakClient.checkUserAlreadyExist(eeg.user.email)
             val request = RegisterEegRequest(eeg.tenant, eeg.rcNumber.toUpperCase(), eeg.communityId, eeg.name, eeg.description,
@@ -171,7 +176,7 @@ object RegisterService {
               eeg.user.email, eeg.contact.web, eeg.contact.phone, eeg.online,
             )
 
-            context.log.info(s"Register new EEG ${request}")
+            context.log.info(s"Register new EEG ${request.rcNumber} (tenant ${request.tenant})")
 
             (for {
               eegReply <- eegClient.register(request).map(r => r.status == 201)
@@ -221,24 +226,24 @@ object RegisterService {
 //              email = email,
 //              invitedAt = LocalDateTime.now(), createdAt = LocalDateTime.now, status = 0))
 
-          case LookupUsersRequest(tenant, replyTo) =>
-            replyTo ! LookupUsersResponse(
-              keycloakClient.findUserByTenant(tenant) match {
-                case Success(l) =>
-                  l.filter(ku => ku.getFirstName != null).map(ku =>
-                    AuthorizedUser(ku.getFirstName, ku.getLastName, ku.getEmail, tenant, if (ku.getRealmRoles == null) None else Some(ku.getRealmRoles.asScala.toList)))
-                case Failure(e) =>
-                  context.log.error(e.getMessage)
-                  List.empty
-              })
-
           case AddTenantToUser(tenant, email, replyTo) =>
             keycloakClient.getUserId(email) match {
               case Success(id) =>
-                keycloakClient.addTenantToUser(id, tenant)
-                replyTo ! AddTenantToUserResponse(200)
+                Try(keycloakClient.addTenantToUser(id, tenant)) match {
+                  case Success(_) => replyTo ! AddTenantToUserResponse(200)
+                  case Failure(e) =>
+                    context.log.error(s"Adding tenant ${tenant.toUpperCase()} to user $id failed: ${e.getMessage}")
+                    replyTo ! AddTenantToUserResponse(500)
+                }
               case _ => replyTo ! AddTenantToUserResponse(500)
             }
+
+          case PontonRegister(_, _, pontonInfo, replyTo) if pontonInfo.pontonCommType == PontonCommType.MAIL =>
+            replyTo ! PontonRegisterResponse(400, MailNotSupported)
+
+          // NONE is no communication type for eda-xp: registering it would store "NONE" as type.
+          case PontonRegister(_, _, pontonInfo, replyTo) if pontonInfo.pontonCommType == PontonCommType.NONE =>
+            replyTo ! PontonRegisterResponse(400, NoPontonSelected)
 
           case PontonRegister(tenant, rcNumber, pontonInfo, replyTo) =>
             val pontonRequest = RegisterPontonRequest(rcNumber.toUpperCase(),
@@ -254,7 +259,9 @@ object RegisterService {
                   tenant = tenant,
                   value = Map("online" -> "true"),
                 )) onComplete {
-                  case Success(_) => replyTo ! PontonRegisterResponse(500, value.message)
+                  case Success(update) if update.status == 200 || update.status == 201 =>
+                    replyTo ! PontonRegisterResponse(value.status, value.message)
+                  case Success(update) => replyTo ! PontonRegisterResponse(update.status, update.message)
                   case Failure(ex) => replyTo ! PontonRegisterResponse(500, ex.getMessage)
                 }
               }
@@ -264,7 +271,7 @@ object RegisterService {
         }
         Behaviors.same
       }
-      }
+      }).onFailure[Exception](SupervisorStrategy.resume)
     }
   }
 }
