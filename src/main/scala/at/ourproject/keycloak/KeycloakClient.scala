@@ -58,7 +58,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
     val realm = realmResource(keycloakAdminClient)
     val users = usersResource(realm)
 
-    log.info(s"Create Keycloak-User: $user")
+    log.info(s"Create Keycloak-User for tenant ${rcNumber.toUpperCase()}")
 
     val buildUsername = (firstname: String, lastname: String) => s"${normalizeName(lastname).substring(0,6)}${firstname.substring(0,2)}"
 
