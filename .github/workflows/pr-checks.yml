@@ -3,6 +3,8 @@
 # directory (sbt-native-packager, no Docker daemon).
 # Versions fixed, each release older than 7 days (checked 2026-10-09): Temurin 17.0.19+10, sbt from
 # project/build.properties. Actions pinned by commit SHA.
+# Every job keeps its output as an artifact for 30 days (test-results-<job>: the JUnit XML),
+# for the CI report collector (vfeeg-development/eegfaktura-dev).
 
 name: PR Checks
 
@@ -41,6 +43,15 @@ jobs:
       - name: Unit tests
         run: sbt -batch test
 
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results-unit
+          path: target/test-reports/
+          if-no-files-found: ignore
+          retention-days: 30
+
   full:
     name: Full test suite
     runs-on: ubuntu-latest
@@ -63,4 +74,13 @@ jobs:
 
       - name: Clean build, tests, staged image
         run: sbt -batch clean test Docker/stage
+
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results-full
+          path: target/test-reports/
+          if-no-files-found: ignore
+          retention-days: 30
 
