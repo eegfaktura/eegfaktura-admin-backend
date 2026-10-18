@@ -8,6 +8,8 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.0.6] – 2026-10-18
+
 ### Added
 - CI: PR checks and security scan. Every pull request runs the tests and a clean build with the
   staged Docker image (`pr-checks.yml`); `security-scan.yml` looks for leaked secrets in new
