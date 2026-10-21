@@ -25,7 +25,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       getUserRepresentation(email)
       true
     } catch {
-      case e: Exception => false
+      case _: Exception => false
     }
   }
 

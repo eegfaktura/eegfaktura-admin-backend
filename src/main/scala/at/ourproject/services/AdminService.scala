@@ -1,15 +1,12 @@
 package at.ourproject.services
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler}
+import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
 import org.apache.pekko.grpc.GrpcClientSettings
-import org.apache.pekko.util.Timeout
 import at.ourproject.admin.{AdminEegServiceClient, UpdateEegRequest}
 import at.ourproject.routes.{UpdateClassEnum, UpdateMessage}
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.DurationInt
-import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
 object AdminService {
@@ -27,9 +24,6 @@ object AdminService {
 
     implicit def ec: ExecutionContext = system.executionContext
 
-    implicit def scheduler: Scheduler = context.system.scheduler
-
-    implicit lazy val timeout: Timeout = Timeout(5.seconds)
     //      context.system.receptionist ! Receptionist.Register(NodeServiceKey, context.self)
 
     val adminClient = AdminEegServiceClient(GrpcClientSettings.fromConfig("register.RegisterEegService"))

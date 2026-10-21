@@ -37,6 +37,12 @@ this changelog highlights the changes relevant for overview and operations.
 - `/eeg/register`, `/eeg/account` and `/eeg/accounts` wait up to 50 s for Keycloak (other routes 10 s; below the 60 s idle and proxy timeouts); the groups are
   read once per registration.
 
+### Changed
+- Code cleanup without behaviour change (vfeeg-development/eegfaktura-platform#183): two placeholder test
+  cases removed, unused imports, private values and locals removed, deprecated `Map.mapValues` replaced; the
+  build reports deprecations (`-deprecation`, warnings only). PR checks run one job (`full`: clean build, tests,
+  staged image) instead of two; the artifact `test-results-unit` is no longer produced.
+
 ### Fixed
 - A generated username that is already taken (same name prefix) no longer fails the account: `2` … `9` is appended.
   A username the operator gave is used as it is (taken: error, as before).
@@ -46,6 +52,15 @@ this changelog highlights the changes relevant for overview and operations.
 - Adding a community to an account whose tenants are stored one value per tenant (`"RC100100"`, `"GC106668"`, as
   set in the Keycloak console or the realm import) replaced all its tenants with the new one; an account without a
   tenant lost its other attributes. Both forms are now read and kept (also for `GET /eeg/addTenant`).
+
+### Security
+- The Keycloak `admin-cli` client secret no longer has a default in `application.conf`
+  (vfeeg-development/eegfaktura-platform#183). `KEYCLOAK_ADMIN_CLI_SECRET` is now required: without
+  it (or with an empty value) the service logs an error and refuses to start. All known deployments
+  (prod, pilot, `eegfaktura-docker-compose`, the `eegfaktura-dev` stack) already set it. The unused
+  `keycloak.json` (same secret) and a commented-out legacy config block with old secrets were
+  removed. The values remain in the git history: **operators must rotate the `admin-cli` secret in
+  Keycloak** for every zone and update the Kubernetes secret / compose `.env`.
 
 ## [1.0.6] – 2026-10-18
 

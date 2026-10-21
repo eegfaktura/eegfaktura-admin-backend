@@ -34,7 +34,7 @@ class ParticipantsRepository(db: Database, p: JdbcProfile)(implicit ec: Executio
       dataTuples =>
         val grouped = dataTuples.groupBy(_._1.id)
         grouped.map {
-          case (r, tuples) =>
+          case (_, tuples) =>
             var (e, _) = tuples.head
             EegParticipant(e.id, e.tenant, e.firstName, e.lastName, e.businessRole, e.status, tuples.map(_._2).filter(m => m.participantId == e.id))
         }.head
@@ -51,7 +51,7 @@ class ParticipantsRepository(db: Database, p: JdbcProfile)(implicit ec: Executio
       dataTuples =>
         val grouped = dataTuples.groupBy(_._1.id)
         grouped.map {
-          case (r, tuples) =>
+          case (_, tuples) =>
           var (e, _) = tuples.head
             EegParticipant(e.id, e.tenant, e.firstName, e.lastName, e.businessRole, e.status, tuples.map(_._2).filter(m => m.participantId == e.id))
         }.toSeq

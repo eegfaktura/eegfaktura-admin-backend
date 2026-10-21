@@ -12,7 +12,6 @@ import at.ourproject.services.RegisterService
 import at.ourproject.services.RegisterService.{AccountGroups, AccountUser, Eeg, PontonRegInfo}
 import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
-import org.slf4j.Logger
 
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
@@ -24,8 +23,6 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
   private val keycloakTimeout: Timeout = Timeout(50.seconds)
   implicit val scheduler: Scheduler = system.scheduler
   implicit val materializer: Materializer = SystemMaterializer(system).materializer
-
-  private val log: Logger = system.log
 
   private val registrationRoutes = {
     concat(

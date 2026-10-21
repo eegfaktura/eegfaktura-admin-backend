@@ -5,6 +5,9 @@ ThisBuild / version := "0.2.10-SNAPSHOT"
 
 ThisBuild / scalaVersion := "2.13.9"
 
+// Report deprecations in full (warnings only, the build does not fail on them).
+ThisBuild / scalacOptions += "-deprecation"
+
 val dockerVersion      = "0.2.11"
 
 // `latest` (und das Versions-Tag) sind wandernd: die Dev-Zone zieht `latest`. Ein Build aus
