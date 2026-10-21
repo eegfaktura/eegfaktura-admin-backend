@@ -178,6 +178,105 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
     }
   }
 
+  private class AccountKeycloak(existing: Set[String], failing: Set[String] = Set.empty) extends KeycloakClient(null, null) {
+    val created = new ConcurrentLinkedQueue[String]()
+    override def checkUserAlreadyExist(email: String): Boolean = false
+    override def getGroups: List[org.keycloak.representations.idm.GroupRepresentation] = Nil
+    override def createUser(user: KeycloakClient.User, rcNumber: String,
+                            userGroups: List[org.keycloak.representations.idm.GroupRepresentation]): Unit = ()
+    override def ensureAccount(tenant: String, user: AccountUser,
+                               userGroups: List[org.keycloak.representations.idm.GroupRepresentation]): at.ourproject.keycloak.AccountStatus.Value =
+      if (failing.contains(user.email)) throw new RuntimeException("keycloak down")
+      else if (user.email.startsWith("member")) throw new IllegalStateException(KeycloakClient.LessRights)
+      else if (existing.contains(user.email)) at.ourproject.keycloak.AccountStatus.linked
+      else { created.add(user.email); at.ourproject.keycloak.AccountStatus.created }
+    override def listAccounts(tenant: String): List[KeycloakClient.AccountView] =
+      if (tenant == "BROKEN") throw new RuntimeException("keycloak down")
+      else List(KeycloakClient.AccountView("ottan", "Anna", "Ott", "anna@test.local", enabled = true, passwordPending = true))
+  }
+
+  "RegisterEeg with a list of accounts" should {
+    "set up exactly the listed accounts and report the result per account" in {
+      val kc = new AccountKeycloak(existing = Set("linked@test.local"), failing = Set("fails@test.local")) {
+        override def createUser(user: KeycloakClient.User, rcNumber: String,
+                                userGroups: List[org.keycloak.representations.idm.GroupRepresentation]): Unit =
+          throw new RuntimeException("the contact must not get a login")
+      }
+      val service = testKit.spawn(RegisterService(kc))
+      val probe = testKit.createTestProbe[Command]()
+      val withAccounts = eeg(online = false, PontonCommType.NONE).copy(accounts = Some(List(
+        AccountUser("Neu", "Account", "new@test.local"),
+        AccountUser("Alt", "Account", "linked@test.local"),
+        AccountUser("Kaputt", "Account", "fails@test.local"),
+        AccountUser("Ohne", "Mail", "keine-mail"),
+        AccountUser("Neu", "Account", "NEW@test.local"))))
+
+      service ! RegisterEeg(withAccounts, Nil, probe.ref)
+
+      val reply = probe.expectMessageType[EegRegistered](10.seconds)
+      reply.code shouldBe 201
+      reply.accounts.map(r => (r.email, r.status)) shouldBe List(
+        ("new@test.local", "created"), ("linked@test.local", "linked"), ("fails@test.local", "failed"), ("keine-mail", "failed"))
+      kc.created.size shouldBe 1
+    }
+  }
+
+  "RegisterEeg with a list and an invalid tenant" should {
+    "be refused before the community is registered" in {
+      EegStub.registered.clear()
+      val service = testKit.spawn(RegisterService(new AccountKeycloak(existing = Set.empty)))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! RegisterEeg(eeg(online = false, PontonCommType.NONE).copy(tenant = "TE 100002",
+        accounts = Some(List(AccountUser("Neu", "Account", "new@test.local")))), Nil, probe.ref)
+
+      probe.expectMessage(10.seconds, EegRegisterError(400, "Tenant ungültig"))
+      EegStub.registered.size shouldBe 0
+    }
+  }
+
+  "AddAccount" should {
+    "reply 200 with the result" in {
+      val service = testKit.spawn(RegisterService(new AccountKeycloak(existing = Set("linked@test.local"))))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! AddAccount("TE100002", AccountUser("Alt", "Account", "linked@test.local"), AccountGroups, probe.ref)
+      probe.expectMessage(10.seconds, AddAccountResponse(200, AccountResult("linked@test.local", "linked", "")))
+    }
+
+    "reply 400 for invalid input or a missing tenant, 500 when Keycloak fails" in {
+      val service = testKit.spawn(RegisterService(new AccountKeycloak(existing = Set.empty, failing = Set("fails@test.local"))))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! AddAccount("TE100002", AccountUser("", "Account", "x@test.local"), AccountGroups, probe.ref)
+      probe.expectMessageType[AddAccountResponse](10.seconds).status shouldBe 400
+      service ! AddAccount(" ", AccountUser("Neu", "Account", "x@test.local"), AccountGroups, probe.ref)
+      probe.expectMessageType[AddAccountResponse](10.seconds).status shouldBe 400
+      service ! AddAccount("""TE100002","RC999999""", AccountUser("Neu", "Account", "x@test.local"), AccountGroups, probe.ref)
+      probe.expectMessageType[AddAccountResponse](10.seconds).status shouldBe 400
+      service ! AddAccount("TE100002", AccountUser("Kaputt", "Account", "fails@test.local"), AccountGroups, probe.ref)
+      probe.expectMessageType[AddAccountResponse](10.seconds).status shouldBe 500
+      service ! AddAccount("TE100002", AccountUser("Mit", "Glied", "member@test.local"), AccountGroups, probe.ref)
+      val refused = probe.expectMessageType[AddAccountResponse](10.seconds)
+      refused.status shouldBe 409
+      refused.result.message shouldBe KeycloakClient.LessRights
+    }
+  }
+
+  "ListAccounts" should {
+    "reply with the accounts, or 500 when Keycloak fails" in {
+      val service = testKit.spawn(RegisterService(new AccountKeycloak(existing = Set.empty)))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! ListAccounts("TE100002", probe.ref)
+      probe.expectMessageType[ListAccountsResponse](10.seconds).accounts.map(_.email) shouldBe List("anna@test.local")
+      service ! ListAccounts("BROKEN", probe.ref)
+      probe.expectMessageType[ListAccountsResponse](10.seconds).status shouldBe 500
+      service ! ListAccounts("", probe.ref)
+      probe.expectMessageType[ListAccountsResponse](10.seconds).status shouldBe 400
+    }
+  }
+
   "PontonRegister with MAIL transport" should {
     "be rejected without calling Ponton" in {
       PontonStub.registered.clear()

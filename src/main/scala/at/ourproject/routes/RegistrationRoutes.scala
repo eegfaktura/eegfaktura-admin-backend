@@ -9,15 +9,19 @@ import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import org.apache.pekko.stream.{Materializer, SystemMaterializer}
 import org.apache.pekko.util.Timeout
 import at.ourproject.services.RegisterService
-import at.ourproject.services.RegisterService.{Eeg, PontonRegInfo}
+import at.ourproject.services.RegisterService.{AccountGroups, AccountUser, Eeg, PontonRegInfo}
 import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import org.slf4j.Logger
 
+import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 
 class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[AuthenticatedUser]], node: ActorRef[RegisterService.Command])(implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router {
   private implicit val timeout: Timeout = Timeout.create(system.settings.config.getDuration("app.routes.ask-timeout"))
+  // Registration with several accounts and the account list make many Keycloak calls (and set-password mails):
+  // they get more time than the other routes (platform#166). Below the idle timeout and the proxy read timeout (60 s).
+  private val keycloakTimeout: Timeout = Timeout(50.seconds)
   implicit val scheduler: Scheduler = system.scheduler
   implicit val materializer: Materializer = SystemMaterializer(system).materializer
 
@@ -31,16 +35,16 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
           path("register") {
             pathEndOrSingleSlash {
               post {
-                entity(as[Eeg]) { eeg =>
+                withRequestTimeout(55.seconds) { entity(as[Eeg]) { eeg =>
                   val processFuture: Future[RegisterService.ResponseCommand] = node.ask(
-                    ref => RegisterService.RegisterEeg(eeg, List("EEG_ADMIN", "EEG_OWNER"), ref)
-                  )(timeout, scheduler).mapTo[RegisterService.ResponseCommand]
+                    ref => RegisterService.RegisterEeg(eeg, AccountGroups, ref)
+                  )(keycloakTimeout, scheduler).mapTo[RegisterService.ResponseCommand]
                   onSuccess(processFuture) {
                     case res: RegisterService.EegRegistered => complete(res)
                     case err: RegisterService.EegRegisterError => complete(StatusCodes.BadRequest, err)
                     case _ => complete(StatusCodes.InternalServerError)
                   }
-                }
+                } }
               }
             }
           } ~
@@ -57,6 +61,35 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
                   }
                 }
               }
+            } ~
+            path("account") {
+              pathEndOrSingleSlash {
+                post { withRequestTimeout(55.seconds) {
+                  parameters("tenant") { tenant =>
+                    entity(as[AccountUser]) { user =>
+                      val processFuture: Future[RegisterService.AddAccountResponse] = node.ask(
+                        ref => RegisterService.AddAccount(tenant, user, AccountGroups, ref)
+                      )(keycloakTimeout, scheduler).mapTo[RegisterService.AddAccountResponse]
+                      onSuccess(processFuture) { res =>
+                        complete(StatusCodes.getForKey(res.status).getOrElse(StatusCodes.InternalServerError), res.result)
+                      }
+                    }
+                  }
+                } }
+              }
+            } ~
+            path("accounts") {
+              get { withRequestTimeout(55.seconds) {
+                parameters("tenant") { tenant =>
+                  val processFuture: Future[RegisterService.ListAccountsResponse] = node.ask(
+                    ref => RegisterService.ListAccounts(tenant, ref)
+                  )(keycloakTimeout, scheduler).mapTo[RegisterService.ListAccountsResponse]
+                  onSuccess(processFuture) { res =>
+                    if (res.status == 200) complete(res.accounts)
+                    else complete(StatusCodes.getForKey(res.status).getOrElse(StatusCodes.InternalServerError), res.message)
+                  }
+                }
+              } }
             } ~
             path("addTenant") {
               get {
