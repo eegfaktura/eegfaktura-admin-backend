@@ -8,6 +8,8 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.1.0] – 2026-10-21
+
 ### Added
 - **Several logins per community** (platform#166). `POST /eeg/register` takes an optional list `accounts`
   (first name, last name, e-mail): exactly these get a login, all with the groups `EEG_ADMIN` and `EEG_OWNER`; the
