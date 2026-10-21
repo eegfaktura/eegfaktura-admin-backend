@@ -205,6 +205,10 @@ object RegisterService {
           case RegisterEeg(eeg, _, replyTo) if eeg.online && eeg.pontonInfo.pontonCommType == PontonCommType.MAIL =>
             replyTo ! EegRegisterError(400, MailNotSupported)
 
+          // checked before the community is registered: afterwards it could get no login
+          case RegisterEeg(eeg, _, replyTo) if registrationAccounts(eeg).isDefined && validTenant(eeg.tenant).isEmpty =>
+            replyTo ! EegRegisterError(400, "Tenant ungültig")
+
           case RegisterEeg(eeg, groups, replyTo) => {
             lazy val userExists = keycloakClient.checkUserAlreadyExist(eeg.user.email)
             val request = RegisterEegRequest(eeg.tenant, eeg.rcNumber.toUpperCase(), eeg.communityId, eeg.name, eeg.description,
@@ -308,7 +312,8 @@ object RegisterService {
           case AddAccount(tenant, user, groups, replyTo) =>
             val result = setupAccounts(keycloakClient, validTenant(tenant).get, List(user), groups).head
             val status = if (result.status != AccountStatus.failed.toString) 200
-              else if (invalidAccount(user).isDefined) 400 else 500
+              else if (invalidAccount(user).isDefined) 400
+              else if (KeycloakClient.Refusals.contains(result.message)) 409 else 500
             replyTo ! AddAccountResponse(status, result)
 
           case ListAccounts(tenant, replyTo) if validTenant(tenant).isEmpty =>

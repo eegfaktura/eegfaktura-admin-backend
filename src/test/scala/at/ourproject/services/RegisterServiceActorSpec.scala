@@ -187,6 +187,7 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
     override def ensureAccount(tenant: String, user: AccountUser,
                                userGroups: List[org.keycloak.representations.idm.GroupRepresentation]): at.ourproject.keycloak.AccountStatus.Value =
       if (failing.contains(user.email)) throw new RuntimeException("keycloak down")
+      else if (user.email.startsWith("member")) throw new IllegalStateException(KeycloakClient.LessRights)
       else if (existing.contains(user.email)) at.ourproject.keycloak.AccountStatus.linked
       else { created.add(user.email); at.ourproject.keycloak.AccountStatus.created }
     override def listAccounts(tenant: String): List[KeycloakClient.AccountView] =
@@ -220,6 +221,20 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
     }
   }
 
+  "RegisterEeg with a list and an invalid tenant" should {
+    "be refused before the community is registered" in {
+      EegStub.registered.clear()
+      val service = testKit.spawn(RegisterService(new AccountKeycloak(existing = Set.empty)))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! RegisterEeg(eeg(online = false, PontonCommType.NONE).copy(tenant = "TE 100002",
+        accounts = Some(List(AccountUser("Neu", "Account", "new@test.local")))), Nil, probe.ref)
+
+      probe.expectMessage(10.seconds, EegRegisterError(400, "Tenant ungültig"))
+      EegStub.registered.size shouldBe 0
+    }
+  }
+
   "AddAccount" should {
     "reply 200 with the result" in {
       val service = testKit.spawn(RegisterService(new AccountKeycloak(existing = Set("linked@test.local"))))
@@ -241,6 +256,10 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       probe.expectMessageType[AddAccountResponse](10.seconds).status shouldBe 400
       service ! AddAccount("TE100002", AccountUser("Kaputt", "Account", "fails@test.local"), AccountGroups, probe.ref)
       probe.expectMessageType[AddAccountResponse](10.seconds).status shouldBe 500
+      service ! AddAccount("TE100002", AccountUser("Mit", "Glied", "member@test.local"), AccountGroups, probe.ref)
+      val refused = probe.expectMessageType[AddAccountResponse](10.seconds)
+      refused.status shouldBe 409
+      refused.result.message shouldBe KeycloakClient.LessRights
     }
   }
 

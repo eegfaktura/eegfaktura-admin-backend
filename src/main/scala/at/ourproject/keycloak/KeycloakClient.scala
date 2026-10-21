@@ -175,6 +175,14 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
         if (!Option(user.isEmailVerified).exists(_.booleanValue()))
           throw new IllegalStateException(KeycloakClient.EmailNotVerified)
 
+        // The groups hold for all communities of the account: an account that already has a community but not all
+        // groups would silently get them there too (e.g. a member login becoming admin). Decided 21.10.2026: refuse.
+        val current = userResource.groups().asScala.map(_.getName).toSet
+        val existingTenants = KeycloakClient.tenantsOf(
+          Option(user.getAttributes).flatMap(a => Option(a.get("tenant"))).map(_.asScala.toList).getOrElse(Nil))
+        if (existingTenants.nonEmpty && !userGroups.forall(g => current.contains(g.getName)))
+          throw new IllegalStateException(KeycloakClient.LessRights)
+
         val firstName = user.getFirstName
         if (firstName == null || firstName.isEmpty) {
           user.setFirstName(userInfo.firstname)
@@ -226,13 +234,13 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
    * their own) or, if the e-mail is known, the existing account gets the community and the groups.
    */
   def ensureAccount(tenant: String, user: AccountUser, userGroups: List[GroupRepresentation]): AccountStatus.Value =
-    if (checkUserAlreadyExist(user.email)) {
-      val id = getUserId(user.email).get
-      configureUser(id, tenant, UserInfo("", "", user.firstname, user.lastname, user.email), userGroups)
-      AccountStatus.linked
-    } else {
-      createUser(User(None, user.firstname, user.lastname, user.email, None), tenant, userGroups)
-      AccountStatus.created
+    getUserId(user.email) match {
+      case scala.util.Success(id) =>
+        configureUser(id, tenant, UserInfo("", "", user.firstname, user.lastname, user.email), userGroups)
+        AccountStatus.linked
+      case scala.util.Failure(_) =>
+        createUser(User(None, user.firstname, user.lastname, user.email, None), tenant, userGroups)
+        AccountStatus.created
     }
 
   /** Accounts with access to the community. Keycloak cannot search the JSON list in the attribute: all users are read page by page. */
@@ -317,6 +325,11 @@ object KeycloakClient {
   case class AccountView(username: String, firstname: String, lastname: String, email: String, enabled: Boolean, passwordPending: Boolean)
 
   val EmailNotVerified = "Es gibt schon einen Account mit dieser E-Mail-Adresse, die Adresse ist dort aber nicht bestätigt. Bitte in Keycloak prüfen."
+
+  val LessRights = "Es gibt schon einen Account mit dieser E-Mail-Adresse, er hat bisher weniger Rechte. Die Rechte gelten für alle seine EEGs: bitte in Keycloak klären."
+
+  /** Expected refusals (not a Keycloak fault): the operator has to clear them in Keycloak. */
+  val Refusals: Set[String] = Set(EmailNotVerified, LessRights)
 
   /** The tenant attribute: a JSON list as text. */
   def tenantAttribute(tenants: List[String]): String = {
