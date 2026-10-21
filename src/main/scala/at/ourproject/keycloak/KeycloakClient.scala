@@ -140,27 +140,11 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
    * @param tenant       Tenant to be added
    */
   private def addTenantToUserResource(user: UserRepresentation, tenant: String): UserRepresentation = {
-    import io.circe.generic.auto._
-    import io.circe.parser.decode
-    import io.circe.syntax._
-
-    val userAttributes = user.getAttributes match {
-      case null => collection.mutable.Map[String, java.util.List[String]]()
-      case x => x.asScala
-    }
-
-    val tenants = userAttributes.get("tenant").map(t => if (t.size() > 0) t.get(0) else "").getOrElse("")
-    if (tenants.isEmpty) {
-      user.setAttributes(Map("tenant" -> List(s"""["$tenant"]""").asJava).asJava)
-    } else {
-      val newTenants = decode[List[String]](tenants) match {
-        case Right(value) => if (value.contains(tenant)) value else value :+ tenant
-        case _ => List(tenant)
-      }
-      val a = newTenants.asJson.noSpaces
-
-      user.singleAttribute("tenant", a)
-    }
+    // keep the other attributes and the tenants the user already has, whatever form they are stored in
+    val attributes = Option(user.getAttributes).getOrElse(new java.util.HashMap[String, java.util.List[String]]())
+    val values = Option(attributes.get("tenant")).map(_.asScala.toList).getOrElse(Nil)
+    attributes.put("tenant", new java.util.ArrayList[String](KeycloakClient.withTenant(values, tenant).asJava))
+    user.setAttributes(attributes)
     user
   }
 
@@ -257,7 +241,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
     }
 
     page(0)
-      .filter(u => Option(u.getAttributes).flatMap(a => Option(a.get("tenant"))).exists(_.asScala.exists(hasTenant(_, tenant))))
+      .filter(u => Option(u.getAttributes).flatMap(a => Option(a.get("tenant"))).exists(v => hasTenant(v.asScala.toList, tenant)))
       .map(u => AccountView(
         username = u.getUsername,
         firstname = Option(u.getFirstName).getOrElse(""),
@@ -338,11 +322,26 @@ object KeycloakClient {
   /** The username, then the username with 2 … 9 appended. */
   def usernameCandidates(base: String): List[String] = base :: (2 to 9).map(i => s"$base$i").toList
 
-  /** Does the tenant attribute (a JSON list as text, e.g. ["RC100001","GC100002-001"]) contain the tenant? Case-insensitive. */
-  def hasTenant(attribute: String, tenant: String): Boolean = {
-    import io.circe.parser.decode
-    decode[List[String]](attribute).getOrElse(Nil).exists(_.equalsIgnoreCase(tenant))
-  }
+  private def jsonList(value: String): Option[List[String]] = io.circe.parser.decode[List[String]](value).toOption
+  private def jsonString(value: String): Option[String] = io.circe.parser.decode[String](value).toOption
+
+  /**
+   * The tenants in the attribute values. The token mapper reads every value as JSON, and both forms occur: one
+   * value with a list (`["RC100001","GC100002-001"]`, as this service writes it) or one value per tenant
+   * (`"RC100001"`, e.g. set in the Keycloak console or the realm import); a plain value is taken as it is.
+   */
+  def tenantsOf(values: List[String]): List[String] =
+    values.flatMap(v => jsonList(v).orElse(jsonString(v).map(List(_))).getOrElse(List(v.trim))).filter(_.nonEmpty)
+
+  /** Do the attribute values contain the tenant? Case-insensitive. */
+  def hasTenant(values: List[String], tenant: String): Boolean = tenantsOf(values).exists(_.equalsIgnoreCase(tenant))
+
+  /** The attribute values with the tenant added, in the form they already have; unchanged if it is there. */
+  def withTenant(values: List[String], tenant: String): List[String] =
+    if (hasTenant(values, tenant)) values
+    else if (values.isEmpty || values.exists(v => jsonList(v).isDefined)) List(tenantAttribute(tenantsOf(values) :+ tenant))
+    else if (values.forall(v => jsonString(v).isDefined)) values :+ io.circe.Json.fromString(tenant).noSpaces
+    else values :+ tenant
 
   private val secureRandom = new java.security.SecureRandom()
 

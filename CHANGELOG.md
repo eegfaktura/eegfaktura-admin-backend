@@ -31,6 +31,9 @@ this changelog highlights the changes relevant for overview and operations.
 ### Fixed
 - A username that is already taken (same name prefix) no longer fails the account: `2` … `9` is appended.
 - Adding a community to an existing account reported success also when Keycloak failed; it now reports the error.
+- Adding a community to an account whose tenants are stored one value per tenant (`"RC100100"`, `"GC106668"`, as
+  set in the Keycloak console or the realm import) replaced all its tenants with the new one; an account without a
+  tenant lost its other attributes. Both forms are now read and kept (also for `GET /eeg/addTenant`).
 
 ## [1.0.6] – 2026-10-18
 
