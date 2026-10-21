@@ -1,8 +1,8 @@
 package at.ourproject.keycloak
 
 import at.ourproject.KeycloakConfig.Configuration
-import at.ourproject.keycloak.KeycloakClient.User
-import at.ourproject.services.RegisterService.UserInfo
+import at.ourproject.keycloak.KeycloakClient.{AccountView, User, hasTenant}
+import at.ourproject.services.RegisterService.{AccountUser, UserInfo}
 import org.keycloak.OAuth2Constants
 import org.keycloak.admin.client.resource.{RealmResource, UserResource, UsersResource}
 import org.keycloak.admin.client.{CreatedResponseUtil, Keycloak, KeycloakBuilder}
@@ -72,13 +72,24 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       val userRepresentation = new UserRepresentation()
       userRepresentation.setEnabled(true)
       userRepresentation.setEmailVerified(true)
-      userRepresentation.setUsername(user.username.getOrElse(buildUsername(user.firstName, user.lastName)))
       userRepresentation.setFirstName(user.firstName)
       userRepresentation.setLastName(user.lastName)
       userRepresentation.setEmail(user.email)
       userRepresentation.setAttributes(Map("tenant" -> List(s"""["${rcNumber.toUpperCase()}"]""").asJava).asJava)
 
-      val response = users.create(userRepresentation)
+      // The e-mail is checked before; a conflict here is a username another person already has
+      // (same name prefix): try the next candidate.
+      val base = user.username.getOrElse(buildUsername(user.firstName, user.lastName))
+      val candidates = KeycloakClient.usernameCandidates(base)
+      def create(rest: List[String]): jakarta.ws.rs.core.Response = {
+        userRepresentation.setUsername(rest.head)
+        val response = users.create(userRepresentation)
+        if (response.getStatus == 409 && rest.tail.nonEmpty) {
+          response.close()
+          create(rest.tail)
+        } else response
+      }
+      val response = create(candidates)
       log.info(s"CREATE USER RESPONSE: ${response.getStatus.toString}")
       val userId = CreatedResponseUtil.getCreatedId(response)
 
@@ -211,8 +222,46 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
         userResource.update(addTenantToUserResource(user, tenant.toUpperCase()))
       }
     } catch {
-      case e: Throwable => log.error(e.getMessage)
+      case e: Throwable =>
+        log.error(e.getMessage)
+        throw new RuntimeException(s"Cannot configure user: ${e.getMessage}")
     }
+  }
+
+  /**
+   * Give a person access to a community: a new account (random temporary password and a mail to set
+   * their own) or, if the e-mail is known, the existing account gets the community and the groups.
+   */
+  def ensureAccount(tenant: String, user: AccountUser, userGroups: List[GroupRepresentation]): AccountStatus.Value =
+    if (checkUserAlreadyExist(user.email)) {
+      val id = getUserId(user.email).get
+      configureUser(id, tenant, UserInfo("", "", user.firstname, user.lastname, user.email), userGroups)
+      AccountStatus.linked
+    } else {
+      createUser(User(None, user.firstname, user.lastname, user.email, None), tenant, userGroups)
+      AccountStatus.created
+    }
+
+  /** Accounts with access to the community. Keycloak cannot search the JSON list in the attribute: all users are read page by page. */
+  def listAccounts(tenant: String): List[AccountView] = {
+    val users = usersResource(realmResource(keycloakAdminClient))
+    val pageSize = 100
+
+    def page(first: Int): List[UserRepresentation] = {
+      val chunk = users.list(first, pageSize).asScala.toList
+      if (chunk.size < pageSize) chunk else chunk ++ page(first + pageSize)
+    }
+
+    page(0)
+      .filter(u => Option(u.getAttributes).flatMap(a => Option(a.get("tenant"))).exists(_.asScala.exists(hasTenant(_, tenant))))
+      .map(u => AccountView(
+        username = u.getUsername,
+        firstname = Option(u.getFirstName).getOrElse(""),
+        lastname = Option(u.getLastName).getOrElse(""),
+        email = Option(u.getEmail).getOrElse(""),
+        enabled = u.isEnabled,
+        passwordPending = Option(u.getRequiredActions).exists(_.contains("UPDATE_PASSWORD"))))
+      .sortBy(a => (a.lastname.toLowerCase, a.firstname.toLowerCase))
   }
 
   /**
@@ -262,10 +311,26 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
 }
 
 
+object AccountStatus extends Enumeration {
+  val created, linked, failed = Value
+}
+
 object KeycloakClient {
   implicit val backend: SttpBackend[Identity, Any] = HttpURLConnectionBackend()
 
   case class User(username: Option[String], firstName: String, lastName: String, email: String, password: Option[String])
+
+  /** What the admin tool shows of an account: no id, no attributes. */
+  case class AccountView(username: String, firstname: String, lastname: String, email: String, enabled: Boolean, passwordPending: Boolean)
+
+  /** The username, then the username with 2 … 9 appended. */
+  def usernameCandidates(base: String): List[String] = base :: (2 to 9).map(i => s"$base$i").toList
+
+  /** Does the tenant attribute (a JSON list as text, e.g. ["RC100001","GC100002-001"]) contain the tenant? Case-insensitive. */
+  def hasTenant(attribute: String, tenant: String): Boolean = {
+    import io.circe.parser.decode
+    decode[List[String]](attribute).getOrElse(Nil).exists(_.equalsIgnoreCase(tenant))
+  }
 
   private val secureRandom = new java.security.SecureRandom()
 

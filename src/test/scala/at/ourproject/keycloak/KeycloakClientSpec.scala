@@ -35,4 +35,27 @@ class KeycloakClientSpec extends AnyWordSpecLike with Matchers {
       client.fallbackUsername("Maria", "O") shouldBe "MariaO"
     }
   }
+
+  "usernameCandidates" should {
+    "start with the username and then append 2 to 9" in {
+      KeycloakClient.usernameCandidates("MusterMa") shouldBe
+        List("MusterMa", "MusterMa2", "MusterMa3", "MusterMa4", "MusterMa5", "MusterMa6", "MusterMa7", "MusterMa8", "MusterMa9")
+    }
+  }
+
+  "hasTenant" should {
+    "find the tenant in the JSON list, ignoring case" in {
+      KeycloakClient.hasTenant("""["RC100001","GC100002-001"]""", "gc100002-001") shouldBe true
+    }
+
+    "not match a tenant that only starts the same" in {
+      KeycloakClient.hasTenant("""["RC1000011"]""", "RC100001") shouldBe false
+      KeycloakClient.hasTenant("""["GC100002-001"]""", "GC100002") shouldBe false
+    }
+
+    "be false for an attribute that is no JSON list" in {
+      KeycloakClient.hasTenant("RC100001", "RC100001") shouldBe false
+      KeycloakClient.hasTenant("", "RC100001") shouldBe false
+    }
+  }
 }

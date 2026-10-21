@@ -9,7 +9,7 @@ import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import org.apache.pekko.stream.{Materializer, SystemMaterializer}
 import org.apache.pekko.util.Timeout
 import at.ourproject.services.RegisterService
-import at.ourproject.services.RegisterService.{Eeg, PontonRegInfo}
+import at.ourproject.services.RegisterService.{AccountGroups, AccountUser, Eeg, PontonRegInfo}
 import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import org.slf4j.Logger
@@ -33,7 +33,7 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
               post {
                 entity(as[Eeg]) { eeg =>
                   val processFuture: Future[RegisterService.ResponseCommand] = node.ask(
-                    ref => RegisterService.RegisterEeg(eeg, List("EEG_ADMIN", "EEG_OWNER"), ref)
+                    ref => RegisterService.RegisterEeg(eeg, AccountGroups, ref)
                   )(timeout, scheduler).mapTo[RegisterService.ResponseCommand]
                   onSuccess(processFuture) {
                     case res: RegisterService.EegRegistered => complete(res)
@@ -54,6 +54,35 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
                     onSuccess(processFuture) { res =>
                       complete(res)
                     }
+                  }
+                }
+              }
+            } ~
+            path("account") {
+              pathEndOrSingleSlash {
+                post {
+                  parameters("tenant") { tenant =>
+                    entity(as[AccountUser]) { user =>
+                      val processFuture: Future[RegisterService.AddAccountResponse] = node.ask(
+                        ref => RegisterService.AddAccount(tenant, user, AccountGroups, ref)
+                      )(timeout, scheduler).mapTo[RegisterService.AddAccountResponse]
+                      onSuccess(processFuture) { res =>
+                        complete(StatusCodes.getForKey(res.status).getOrElse(StatusCodes.InternalServerError), res.result)
+                      }
+                    }
+                  }
+                }
+              }
+            } ~
+            path("accounts") {
+              get {
+                parameters("tenant") { tenant =>
+                  val processFuture: Future[RegisterService.ListAccountsResponse] = node.ask(
+                    ref => RegisterService.ListAccounts(tenant, ref)
+                  )(timeout, scheduler).mapTo[RegisterService.ListAccountsResponse]
+                  onSuccess(processFuture) { res =>
+                    if (res.status == 200) complete(res.accounts)
+                    else complete(StatusCodes.getForKey(res.status).getOrElse(StatusCodes.InternalServerError), res.message)
                   }
                 }
               }
