@@ -20,8 +20,8 @@ import scala.concurrent.{ExecutionContext, Future}
 class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[AuthenticatedUser]], node: ActorRef[RegisterService.Command])(implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router {
   private implicit val timeout: Timeout = Timeout.create(system.settings.config.getDuration("app.routes.ask-timeout"))
   // Registration with several accounts and the account list make many Keycloak calls (and set-password mails):
-  // they get more time than the other routes (platform#166).
-  private val keycloakTimeout: Timeout = Timeout(60.seconds)
+  // they get more time than the other routes (platform#166). Below the idle timeout and the proxy read timeout (60 s).
+  private val keycloakTimeout: Timeout = Timeout(50.seconds)
   implicit val scheduler: Scheduler = system.scheduler
   implicit val materializer: Materializer = SystemMaterializer(system).materializer
 
@@ -35,7 +35,7 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
           path("register") {
             pathEndOrSingleSlash {
               post {
-                withRequestTimeout(70.seconds) { entity(as[Eeg]) { eeg =>
+                withRequestTimeout(55.seconds) { entity(as[Eeg]) { eeg =>
                   val processFuture: Future[RegisterService.ResponseCommand] = node.ask(
                     ref => RegisterService.RegisterEeg(eeg, AccountGroups, ref)
                   )(keycloakTimeout, scheduler).mapTo[RegisterService.ResponseCommand]
@@ -64,7 +64,7 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
             } ~
             path("account") {
               pathEndOrSingleSlash {
-                post { withRequestTimeout(70.seconds) {
+                post { withRequestTimeout(55.seconds) {
                   parameters("tenant") { tenant =>
                     entity(as[AccountUser]) { user =>
                       val processFuture: Future[RegisterService.AddAccountResponse] = node.ask(
@@ -79,7 +79,7 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
               }
             } ~
             path("accounts") {
-              get { withRequestTimeout(70.seconds) {
+              get { withRequestTimeout(55.seconds) {
                 parameters("tenant") { tenant =>
                   val processFuture: Future[RegisterService.ListAccountsResponse] = node.ask(
                     ref => RegisterService.ListAccounts(tenant, ref)

@@ -29,7 +29,7 @@ this changelog highlights the changes relevant for overview and operations.
 - New accounts keep the random temporary password and the Keycloak mail to set one's own password (no fixed start
   password). If Keycloak cannot send the mail (e.g. no SMTP in the realm) it is only logged; the list then shows
   „password not yet set“.
-- `/eeg/register`, `/eeg/account` and `/eeg/accounts` wait up to 60 s for Keycloak (other routes 10 s); the groups are
+- `/eeg/register`, `/eeg/account` and `/eeg/accounts` wait up to 50 s for Keycloak (other routes 10 s; below the 60 s idle and proxy timeouts); the groups are
   read once per registration.
 
 ### Fixed
