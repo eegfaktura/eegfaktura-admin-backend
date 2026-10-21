@@ -75,7 +75,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       userRepresentation.setFirstName(user.firstName)
       userRepresentation.setLastName(user.lastName)
       userRepresentation.setEmail(user.email)
-      userRepresentation.setAttributes(Map("tenant" -> List(s"""["${rcNumber.toUpperCase()}"]""").asJava).asJava)
+      userRepresentation.setAttributes(Map("tenant" -> List(KeycloakClient.tenantAttribute(List(rcNumber.toUpperCase()))).asJava).asJava)
 
       // The e-mail is checked before; a conflict here is a username another person already has
       // (same name prefix): try the next candidate.
@@ -184,7 +184,10 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
 
         log.info(s"Configure Keycloak-User: $userId")
 
-        user.setEmailVerified(true)
+        // Users can change their own e-mail: an account with an unconfirmed address could have taken the address of
+        // the person meant here and would get the community. Only a confirmed address is linked (platform#166).
+        if (!Option(user.isEmailVerified).exists(_.booleanValue()))
+          throw new IllegalStateException(KeycloakClient.EmailNotVerified)
 
         val firstName = user.getFirstName
         if (firstName == null || firstName.isEmpty) {
@@ -222,6 +225,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
         userResource.update(addTenantToUserResource(user, tenant.toUpperCase()))
       }
     } catch {
+      case e: IllegalStateException => throw e
       case e: Throwable =>
         log.error(e.getMessage)
         throw new RuntimeException(s"Cannot configure user: ${e.getMessage}")
@@ -322,6 +326,14 @@ object KeycloakClient {
 
   /** What the admin tool shows of an account: no id, no attributes. */
   case class AccountView(username: String, firstname: String, lastname: String, email: String, enabled: Boolean, passwordPending: Boolean)
+
+  val EmailNotVerified = "Es gibt schon einen Account mit dieser E-Mail-Adresse, die Adresse ist dort aber nicht bestätigt. Bitte in Keycloak prüfen."
+
+  /** The tenant attribute: a JSON list as text. */
+  def tenantAttribute(tenants: List[String]): String = {
+    import io.circe.syntax._
+    tenants.asJson.noSpaces
+  }
 
   /** The username, then the username with 2 … 9 appended. */
   def usernameCandidates(base: String): List[String] = base :: (2 to 9).map(i => s"$base$i").toList

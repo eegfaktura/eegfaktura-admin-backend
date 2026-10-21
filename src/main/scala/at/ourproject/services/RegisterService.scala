@@ -129,6 +129,11 @@ object RegisterService {
 
   private val EmailPattern = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$".r
 
+  private val TenantPattern = "^[A-Za-z0-9_-]+$".r
+
+  /** A tenant as it goes into the Keycloak attribute: trimmed, only letters, digits, _ and -. */
+  def validTenant(tenant: String): Option[String] = Option(tenant).map(_.trim).filter(t => TenantPattern.findFirstIn(t).isDefined)
+
   /** Why the account cannot be created, if it cannot. */
   def invalidAccount(user: AccountUser): Option[String] =
     if (user.firstname.trim.isEmpty || user.lastname.trim.isEmpty) Some("Vorname und Nachname erforderlich")
@@ -230,7 +235,11 @@ object RegisterService {
             } yield (eegReply && pontonReply)).onComplete {
               // With a list of accounts (platform#166) exactly these get a login, the contact only if listed.
               case Success(state) if state && registrationAccounts(eeg).isDefined =>
-                replyTo ! EegRegistered(201, "", registrationAccounts(eeg).get.map(a => setupAccount(keycloakClient, eeg.rcNumber, a, groups)))
+                val accounts = registrationAccounts(eeg).get
+                replyTo ! EegRegistered(201, "", validTenant(eeg.tenant) match {
+                  case Some(tenant) => accounts.map(a => setupAccount(keycloakClient, tenant, a, groups))
+                  case None => accounts.map(a => AccountResult(a.email, AccountStatus.failed.toString, "Tenant ungültig"))
+                })
               case Success(state) if state =>
                 try {
                   log.info(s"Create Keycloak User [exists=${userExists}} - ${eeg.rcNumber}")
@@ -287,20 +296,20 @@ object RegisterService {
               case _ => replyTo ! AddTenantToUserResponse(500)
             }
 
-          case AddAccount(tenant, user, _, replyTo) if tenant.trim.isEmpty =>
-            replyTo ! AddAccountResponse(400, AccountResult(user.email, AccountStatus.failed.toString, "EEG fehlt"))
+          case AddAccount(tenant, user, _, replyTo) if validTenant(tenant).isEmpty =>
+            replyTo ! AddAccountResponse(400, AccountResult(user.email, AccountStatus.failed.toString, "EEG fehlt oder ungültig"))
 
           case AddAccount(tenant, user, groups, replyTo) =>
-            val result = setupAccount(keycloakClient, tenant, user, groups)
+            val result = setupAccount(keycloakClient, validTenant(tenant).get, user, groups)
             val status = if (result.status != AccountStatus.failed.toString) 200
               else if (invalidAccount(user).isDefined) 400 else 500
             replyTo ! AddAccountResponse(status, result)
 
-          case ListAccounts(tenant, replyTo) if tenant.trim.isEmpty =>
-            replyTo ! ListAccountsResponse(400, Nil, "EEG fehlt")
+          case ListAccounts(tenant, replyTo) if validTenant(tenant).isEmpty =>
+            replyTo ! ListAccountsResponse(400, Nil, "EEG fehlt oder ungültig")
 
           case ListAccounts(tenant, replyTo) =>
-            Try(keycloakClient.listAccounts(tenant)) match {
+            Try(keycloakClient.listAccounts(validTenant(tenant).get)) match {
               case Success(accounts) => replyTo ! ListAccountsResponse(200, accounts)
               case Failure(e) =>
                 log.error(s"Listing the accounts of tenant ${tenant.toUpperCase()} failed: ${e.getMessage}")

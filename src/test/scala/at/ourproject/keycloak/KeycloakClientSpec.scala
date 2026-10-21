@@ -43,6 +43,14 @@ class KeycloakClientSpec extends AnyWordSpecLike with Matchers {
     }
   }
 
+  "tenantAttribute" should {
+    "write a JSON list that hasTenant reads back" in {
+      val a = KeycloakClient.tenantAttribute(List("RC100001"))
+      a shouldBe """["RC100001"]"""
+      KeycloakClient.hasTenant(a, "rc100001") shouldBe true
+    }
+  }
+
   "hasTenant" should {
     "find the tenant in the JSON list, ignoring case" in {
       KeycloakClient.hasTenant("""["RC100001","GC100002-001"]""", "gc100002-001") shouldBe true

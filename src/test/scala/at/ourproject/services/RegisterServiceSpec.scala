@@ -43,6 +43,20 @@ class RegisterServiceSpec extends AnyWordSpecLike with Matchers {
     }
   }
 
+  "validTenant" should {
+    "trim and accept letters, digits, _ and -" in {
+      validTenant(" GC100002-001 ") shouldBe Some("GC100002-001")
+      validTenant("RC100001") shouldBe Some("RC100001")
+    }
+
+    "reject what would break the JSON attribute or is empty" in {
+      validTenant("""RC100001","RC999999""") shouldBe None
+      validTenant("RC 100001") shouldBe None
+      validTenant(" ") shouldBe None
+      validTenant(null) shouldBe None
+    }
+  }
+
   "registrationAccounts" should {
     "drop duplicates, ignoring case and blanks, and keep the contact only if listed" in {
       val eeg = Eeg("te100002", "te100002", "UNITTEST", "UNIT TEST", "", false,

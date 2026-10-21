@@ -17,6 +17,14 @@ this changelog highlights the changes relevant for overview and operations.
 - `POST /eeg/account?tenant=…` adds a login to an existing community (same rules); `GET /eeg/accounts?tenant=…`
   lists the logins of a community (name, e-mail, username, enabled, password not yet set). Both only for the
   superuser. Keycloak cannot search the tenant list in the attribute, so the list reads all users page by page.
+- An existing account is only linked if its e-mail address is confirmed; otherwise the account is reported as
+  failed („bitte in Keycloak prüfen“). Users can change their own e-mail: an unconfirmed address could belong to
+  someone who took the address of the person meant. Linking no longer marks the address as confirmed. This also
+  applies to the contact's login at registration without a list (then 510 with the reason).
+- The tenant of `/eeg/account`, `/eeg/accounts` and of the registration's accounts is trimmed and must consist of
+  letters, digits, `_` and `-` (else 400 / `failed`); the registration's accounts get the community's `tenant` (the
+  value the backend checks in the token). The tenant attribute of a new account is written as JSON (it was built
+  from the text).
 - New accounts keep the random temporary password and the Keycloak mail to set one's own password (no fixed start
   password).
 

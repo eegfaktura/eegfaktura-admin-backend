@@ -237,6 +237,8 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       probe.expectMessageType[AddAccountResponse](10.seconds).status shouldBe 400
       service ! AddAccount(" ", AccountUser("Neu", "Account", "x@test.local"), AccountGroups, probe.ref)
       probe.expectMessageType[AddAccountResponse](10.seconds).status shouldBe 400
+      service ! AddAccount("""TE100002","RC999999""", AccountUser("Neu", "Account", "x@test.local"), AccountGroups, probe.ref)
+      probe.expectMessageType[AddAccountResponse](10.seconds).status shouldBe 400
       service ! AddAccount("TE100002", AccountUser("Kaputt", "Account", "fails@test.local"), AccountGroups, probe.ref)
       probe.expectMessageType[AddAccountResponse](10.seconds).status shouldBe 500
     }
