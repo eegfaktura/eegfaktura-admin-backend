@@ -22,8 +22,9 @@ this changelog highlights the changes relevant for overview and operations.
   failed („bitte in Keycloak prüfen“). Users can change their own e-mail: an unconfirmed address could belong to
   someone who took the address of the person meant. Linking no longer marks the address as confirmed. This also
   applies to the contact's login at registration without a list (then 510 with the reason).
-- An existing account that already has a community but not all groups (e.g. a member login) is not linked: the
-  groups hold for all its communities, it would become admin there too (decided 21.10.2026). It is reported as
+- An existing account that already has a community but not `EEG_ADMIN` (e.g. a member login) is not linked: the
+  groups hold for all its communities, it would become admin there too (decided 21.10.2026). A missing `EEG_OWNER`
+  is added (it grants nothing today). It is reported as
   failed („bitte in Keycloak klären“); `/eeg/account` answers 409 for this and for an unconfirmed e-mail.
 - A registration with a list of accounts and an invalid tenant is refused (400) before the community is registered.
 - The tenant of `/eeg/account`, `/eeg/accounts` and of the registration's accounts is trimmed and must consist of

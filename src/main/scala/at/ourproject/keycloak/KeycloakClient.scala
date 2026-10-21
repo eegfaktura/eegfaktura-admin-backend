@@ -175,12 +175,13 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
         if (!Option(user.isEmailVerified).exists(_.booleanValue()))
           throw new IllegalStateException(KeycloakClient.EmailNotVerified)
 
-        // The groups hold for all communities of the account: an account that already has a community but not all
-        // groups would silently get them there too (e.g. a member login becoming admin). Decided 21.10.2026: refuse.
+        // The groups hold for all communities of the account: an account that already has a community but not
+        // EEG_ADMIN would silently become admin there too (e.g. a member login). Decided 21.10.2026: refuse. Other
+        // groups are added (EEG_OWNER grants nothing today).
         val current = userResource.groups().asScala.map(_.getName).toSet
         val existingTenants = KeycloakClient.tenantsOf(
           Option(user.getAttributes).flatMap(a => Option(a.get("tenant"))).map(_.asScala.toList).getOrElse(Nil))
-        if (existingTenants.nonEmpty && !userGroups.forall(g => current.contains(g.getName)))
+        if (existingTenants.nonEmpty && userGroups.exists(g => KeycloakClient.RightsGroups.contains(g.getName) && !current.contains(g.getName)))
           throw new IllegalStateException(KeycloakClient.LessRights)
 
         val firstName = user.getFirstName
@@ -327,6 +328,9 @@ object KeycloakClient {
   val EmailNotVerified = "Es gibt schon einen Account mit dieser E-Mail-Adresse, die Adresse ist dort aber nicht bestätigt. Bitte in Keycloak prüfen."
 
   val LessRights = "Es gibt schon einen Account mit dieser E-Mail-Adresse, er hat bisher weniger Rechte. Die Rechte gelten für alle seine EEGs: bitte in Keycloak klären."
+
+  /** The groups that grant rights; an existing account is not raised to them (platform#166). */
+  val RightsGroups: Set[String] = Set("EEG_ADMIN")
 
   /** Expected refusals (not a Keycloak fault): the operator has to clear them in Keycloak. */
   val Refusals: Set[String] = Set(EmailNotVerified, LessRights)
