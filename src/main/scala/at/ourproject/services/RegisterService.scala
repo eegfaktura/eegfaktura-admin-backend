@@ -142,13 +142,19 @@ object RegisterService {
 
   def trimmed(user: AccountUser): AccountUser = AccountUser(user.firstname.trim, user.lastname.trim, user.email.trim)
 
-  /** Set up one account; a failure becomes a result, not an exception. */
-  def setupAccount(keycloakClient: KeycloakClient, tenant: String, user: AccountUser, groups: List[String]): AccountResult =
+  /** Set up the accounts; a failure becomes a result, not an exception. The groups are read once. */
+  def setupAccounts(keycloakClient: KeycloakClient, tenant: String, users: List[AccountUser], groups: List[String]): List[AccountResult] = {
+    lazy val userGroups = keycloakClient.getGroups.filter(g => groups.contains(g.getName))
+    users.map(user => setupAccount(keycloakClient, tenant, user, userGroups))
+  }
+
+  private def setupAccount(keycloakClient: KeycloakClient, tenant: String, user: AccountUser,
+                           userGroups: => List[org.keycloak.representations.idm.GroupRepresentation]): AccountResult =
     invalidAccount(user) match {
       case Some(reason) => AccountResult(user.email, AccountStatus.failed.toString, reason)
       case None =>
         val u = trimmed(user)
-        Try(keycloakClient.ensureAccount(tenant, u, keycloakClient.getGroups.filter(g => groups.contains(g.getName)))) match {
+        Try(keycloakClient.ensureAccount(tenant, u, userGroups)) match {
           case Success(status) => AccountResult(u.email, status.toString, "")
           case Failure(e) =>
             log.error(s"Setting up an account for tenant ${tenant.toUpperCase()} failed: ${e.getMessage}")
@@ -237,7 +243,7 @@ object RegisterService {
               case Success(state) if state && registrationAccounts(eeg).isDefined =>
                 val accounts = registrationAccounts(eeg).get
                 replyTo ! EegRegistered(201, "", validTenant(eeg.tenant) match {
-                  case Some(tenant) => accounts.map(a => setupAccount(keycloakClient, tenant, a, groups))
+                  case Some(tenant) => setupAccounts(keycloakClient, tenant, accounts, groups)
                   case None => accounts.map(a => AccountResult(a.email, AccountStatus.failed.toString, "Tenant ungültig"))
                 })
               case Success(state) if state =>
@@ -300,7 +306,7 @@ object RegisterService {
             replyTo ! AddAccountResponse(400, AccountResult(user.email, AccountStatus.failed.toString, "EEG fehlt oder ungültig"))
 
           case AddAccount(tenant, user, groups, replyTo) =>
-            val result = setupAccount(keycloakClient, validTenant(tenant).get, user, groups)
+            val result = setupAccounts(keycloakClient, validTenant(tenant).get, List(user), groups).head
             val status = if (result.status != AccountStatus.failed.toString) 200
               else if (invalidAccount(user).isDefined) 400 else 500
             replyTo ! AddAccountResponse(status, result)

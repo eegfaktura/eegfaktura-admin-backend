@@ -78,9 +78,11 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       userRepresentation.setAttributes(Map("tenant" -> List(KeycloakClient.tenantAttribute(List(rcNumber.toUpperCase()))).asJava).asJava)
 
       // The e-mail is checked before; a conflict here is a username another person already has
-      // (same name prefix): try the next candidate.
-      val base = user.username.getOrElse(buildUsername(user.firstName, user.lastName))
-      val candidates = KeycloakClient.usernameCandidates(base)
+      // (same name prefix): try the next candidate. A username given by the operator is used as it is.
+      val candidates = user.username match {
+        case Some(given) => List(given)
+        case None => KeycloakClient.usernameCandidates(buildUsername(user.firstName, user.lastName))
+      }
       def create(rest: List[String]): jakarta.ws.rs.core.Response = {
         userRepresentation.setUsername(rest.head)
         val response = users.create(userRepresentation)
@@ -191,6 +193,10 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
           log.debug("Update User Username")
         }
 
+        // Before the password: update() with this representation would drop the required action UPDATE_PASSWORD
+        // that resetPassword adds.
+        userResource.update(addTenantToUserResource(user, tenant.toUpperCase()))
+
         val groups = userResource.groups()
         userGroups.foreach(g => if (!groups.contains(g)) userResource.joinGroup(g.getId))
 
@@ -206,7 +212,6 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
         } catch {
           case e: Throwable => log.warn(s"Could not read credentials of user $userId, left unchanged: ${e.getMessage}")
         }
-        userResource.update(addTenantToUserResource(user, tenant.toUpperCase()))
       }
     } catch {
       case e: IllegalStateException => throw e
@@ -328,7 +333,8 @@ object KeycloakClient {
   /**
    * The tenants in the attribute values. The token mapper reads every value as JSON, and both forms occur: one
    * value with a list (`["RC100001","GC100002-001"]`, as this service writes it) or one value per tenant
-   * (`"RC100001"`, e.g. set in the Keycloak console or the realm import); a plain value is taken as it is.
+   * (`"RC100001"`, e.g. set in the Keycloak console or the realm import); a plain value is taken as it is (the
+   * token mapper cannot read it, a tenant added to such values is written as JSON string).
    */
   def tenantsOf(values: List[String]): List[String] =
     values.flatMap(v => jsonList(v).orElse(jsonString(v).map(List(_))).getOrElse(List(v.trim))).filter(_.nonEmpty)
@@ -340,8 +346,7 @@ object KeycloakClient {
   def withTenant(values: List[String], tenant: String): List[String] =
     if (hasTenant(values, tenant)) values
     else if (values.isEmpty || values.exists(v => jsonList(v).isDefined)) List(tenantAttribute(tenantsOf(values) :+ tenant))
-    else if (values.forall(v => jsonString(v).isDefined)) values :+ io.circe.Json.fromString(tenant).noSpaces
-    else values :+ tenant
+    else values :+ io.circe.Json.fromString(tenant).noSpaces
 
   private val secureRandom = new java.security.SecureRandom()
 

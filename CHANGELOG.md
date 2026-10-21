@@ -13,7 +13,8 @@ this changelog highlights the changes relevant for overview and operations.
   (first name, last name, e-mail): exactly these get a login, all with the groups `EEG_ADMIN` and `EEG_OWNER`; the
   contact (`user`) only if listed. An e-mail that already has an account only gets the community added. The answer
   reports each account (`created`, `linked`, `failed` with the reason); the community is registered even if an
-  account fails. Without `accounts` the contact gets the login, as before.
+  account fails. Without `accounts` the contact gets the login, as before (that path still stores `rcNumber` as
+  tenant; the list path stores `tenant`, the value the backend checks — the admin form sets both alike).
 - `POST /eeg/account?tenant=…` adds a login to an existing community (same rules); `GET /eeg/accounts?tenant=…`
   lists the logins of a community (name, e-mail, username, enabled, password not yet set). Both only for the
   superuser. Keycloak cannot search the tenant list in the attribute, so the list reads all users page by page.
@@ -26,10 +27,16 @@ this changelog highlights the changes relevant for overview and operations.
   value the backend checks in the token). The tenant attribute of a new account is written as JSON (it was built
   from the text).
 - New accounts keep the random temporary password and the Keycloak mail to set one's own password (no fixed start
-  password).
+  password). If Keycloak cannot send the mail (e.g. no SMTP in the realm) it is only logged; the list then shows
+  „password not yet set“.
+- `/eeg/register`, `/eeg/account` and `/eeg/accounts` wait up to 60 s for Keycloak (other routes 10 s); the groups are
+  read once per registration.
 
 ### Fixed
-- A username that is already taken (same name prefix) no longer fails the account: `2` … `9` is appended.
+- A generated username that is already taken (same name prefix) no longer fails the account: `2` … `9` is appended.
+  A username the operator gave is used as it is (taken: error, as before).
+- Linking an existing account without a password dropped the required action „update password“ again (the
+  attributes were written after the password with the representation read before).
 - Adding a community to an existing account reported success also when Keycloak failed; it now reports the error.
 - Adding a community to an account whose tenants are stored one value per tenant (`"RC100100"`, `"GC106668"`, as
   set in the Keycloak console or the realm import) replaced all its tenants with the new one; an account without a

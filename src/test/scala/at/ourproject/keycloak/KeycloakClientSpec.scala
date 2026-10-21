@@ -87,6 +87,10 @@ class KeycloakClientSpec extends AnyWordSpecLike with Matchers {
         List("\"RC100100\"", "\"GC106668\"", "\"RC100200\"")
     }
 
+    "add a JSON string to plain values, which the token mapper cannot read" in {
+      KeycloakClient.withTenant(List("RC100100"), "RC100200") shouldBe List("RC100100", "\"RC100200\"")
+    }
+
     "not add a tenant twice, ignoring case" in {
       KeycloakClient.withTenant(List("\"RC100100\""), "rc100100") shouldBe List("\"RC100100\"")
       KeycloakClient.withTenant(List("""["RC100100"]"""), "RC100100") shouldBe List("""["RC100100"]""")
