@@ -1,9 +1,8 @@
 package at.ourproject.services
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, Scheduler, SupervisorStrategy}
+import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior, SupervisorStrategy}
 import org.apache.pekko.grpc.GrpcClientSettings
-import org.apache.pekko.util.Timeout
 import at.energydash.admin.{RegisterPontonRequest, RegisterPontonServiceClient}
 import at.ourproject.admin.{AdminEegServiceClient, UpdateEegRequest}
 import at.ourproject.keycloak.{AccountStatus, KeycloakClient}
@@ -12,7 +11,6 @@ import at.ourproject.register.{RegisterEegRequest, RegisterEegServiceClient}
 import io.circe.{Decoder, Encoder}
 import org.slf4j.{Logger, LoggerFactory}
 
-import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
 
@@ -186,9 +184,6 @@ object RegisterService {
 
       implicit def ec: ExecutionContext = system.executionContext
 
-      implicit def scheduler: Scheduler = context.system.scheduler
-
-      implicit lazy val timeout: Timeout = Timeout(15.seconds)
       //      context.system.receptionist ! Receptionist.Register(NodeServiceKey, context.self)
 
       val adminClient = AdminEegServiceClient(GrpcClientSettings.fromConfig("register.RegisterEegService"))
@@ -284,7 +279,7 @@ object RegisterService {
             }
           }
 
-          case RegisterParticipant(tenant, firstname, lastname, email) =>
+          case _: RegisterParticipant =>
 
 //            userRepo.create(KeycloakUser(id = UUID.randomUUID(),
 //              tenant = tenant,

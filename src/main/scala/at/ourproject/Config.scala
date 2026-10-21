@@ -1,7 +1,6 @@
 package at.ourproject
 
 import com.typesafe.config.{Config, ConfigFactory}
-import io.circe.parser._
 import org.slf4j.LoggerFactory
 
 //object AppConfig {
