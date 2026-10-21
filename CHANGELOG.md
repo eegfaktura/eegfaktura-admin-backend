@@ -37,6 +37,12 @@ this changelog highlights the changes relevant for overview and operations.
 - `/eeg/register`, `/eeg/account` and `/eeg/accounts` wait up to 50 s for Keycloak (other routes 10 s; below the 60 s idle and proxy timeouts); the groups are
   read once per registration.
 
+### Changed
+- Code cleanup without behaviour change (vfeeg-development/eegfaktura-platform#183): two placeholder test
+  cases removed, unused imports, private values and locals removed, deprecated `Map.mapValues` replaced; the
+  build reports deprecations (`-deprecation`, warnings only). PR checks run one job (`full`: clean build, tests,
+  staged image) instead of two; the artifact `test-results-unit` is no longer produced.
+
 ### Fixed
 - A generated username that is already taken (same name prefix) no longer fails the account: `2` … `9` is appended.
   A username the operator gave is used as it is (taken: error, as before).
