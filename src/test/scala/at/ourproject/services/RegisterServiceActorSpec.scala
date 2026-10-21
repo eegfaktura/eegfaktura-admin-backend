@@ -194,9 +194,13 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       else List(KeycloakClient.AccountView("ottan", "Anna", "Ott", "anna@test.local", enabled = true, passwordPending = true))
   }
 
-  "RegisterEeg with further accounts" should {
-    "set up each further account and report the result per account" in {
-      val kc = new AccountKeycloak(existing = Set("linked@test.local"), failing = Set("fails@test.local"))
+  "RegisterEeg with a list of accounts" should {
+    "set up exactly the listed accounts and report the result per account" in {
+      val kc = new AccountKeycloak(existing = Set("linked@test.local"), failing = Set("fails@test.local")) {
+        override def createUser(user: KeycloakClient.User, rcNumber: String,
+                                userGroups: List[org.keycloak.representations.idm.GroupRepresentation]): Unit =
+          throw new RuntimeException("the contact must not get a login")
+      }
       val service = testKit.spawn(RegisterService(kc))
       val probe = testKit.createTestProbe[Command]()
       val withAccounts = eeg(online = false, PontonCommType.NONE).copy(accounts = Some(List(
@@ -204,7 +208,7 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
         AccountUser("Alt", "Account", "linked@test.local"),
         AccountUser("Kaputt", "Account", "fails@test.local"),
         AccountUser("Ohne", "Mail", "keine-mail"),
-        AccountUser("Tester", "Korrekt", "TESTER@test.local"))))
+        AccountUser("Neu", "Account", "NEW@test.local"))))
 
       service ! RegisterEeg(withAccounts, Nil, probe.ref)
 

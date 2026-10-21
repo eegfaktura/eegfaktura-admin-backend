@@ -8,6 +8,22 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Added
+- **Several logins per community** (platform#166). `POST /eeg/register` takes an optional list `accounts`
+  (first name, last name, e-mail): exactly these get a login, all with the groups `EEG_ADMIN` and `EEG_OWNER`; the
+  contact (`user`) only if listed. An e-mail that already has an account only gets the community added. The answer
+  reports each account (`created`, `linked`, `failed` with the reason); the community is registered even if an
+  account fails. Without `accounts` the contact gets the login, as before.
+- `POST /eeg/account?tenant=…` adds a login to an existing community (same rules); `GET /eeg/accounts?tenant=…`
+  lists the logins of a community (name, e-mail, username, enabled, password not yet set). Both only for the
+  superuser. Keycloak cannot search the tenant list in the attribute, so the list reads all users page by page.
+- New accounts keep the random temporary password and the Keycloak mail to set one's own password (no fixed start
+  password).
+
+### Fixed
+- A username that is already taken (same name prefix) no longer fails the account: `2` … `9` is appended.
+- Adding a community to an existing account reported success also when Keycloak failed; it now reports the error.
+
 ## [1.0.6] – 2026-10-18
 
 ### Added

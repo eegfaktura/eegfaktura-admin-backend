@@ -43,23 +43,24 @@ class RegisterServiceSpec extends AnyWordSpecLike with Matchers {
     }
   }
 
-  "furtherAccounts" should {
-    "drop the admin login and duplicates, ignoring case and blanks" in {
+  "registrationAccounts" should {
+    "drop duplicates, ignoring case and blanks, and keep the contact only if listed" in {
       val eeg = Eeg("te100002", "te100002", "UNITTEST", "UNIT TEST", "", false,
         AccountInfo(iban = "AT", owner = "T", sepa = false),
         BusinessInfo(legal = EegLegalType.verein, settlementInterval = EegSettlementType.MONTHLY),
         Grid(id = "AT03001", name = "N", area = GridAreaType.LOCAL, allocation = GridAllocationType.DYNAMIC),
         Contact(street = "A", streetNumber = "1", city = "C", zip = "1", web = None, phone = None),
         PontonInfo(username = "", password = "", domain = "", host = None, port = None, pontonCommType = PontonCommType.NONE),
-        UserInfo(username = "u", password = "", firstname = "Haupt", lastname = "Account", email = "haupt@test.local"),
+        UserInfo(username = "u", password = "", firstname = "Kontakt", lastname = "Person", email = "kontakt@test.local"),
         Some(List(
-          AccountUser("Haupt", "Account", " HAUPT@test.local"),
+          AccountUser("Haupt", "Account", "haupt@test.local"),
           AccountUser("Neben", "Eins", "neben1@test.local"),
           AccountUser("Neben", "Eins", "Neben1@Test.local "),
           AccountUser("Neben", "Zwei", "neben2@test.local"))))
 
-      furtherAccounts(eeg).map(_.email) shouldBe List("neben1@test.local", "neben2@test.local")
-      furtherAccounts(eeg.copy(accounts = None)) shouldBe Nil
+      registrationAccounts(eeg).map(_.map(_.email)) shouldBe Some(List("haupt@test.local", "neben1@test.local", "neben2@test.local"))
+      registrationAccounts(eeg.copy(accounts = None)) shouldBe None
+      registrationAccounts(eeg.copy(accounts = Some(Nil))) shouldBe None
     }
   }
 

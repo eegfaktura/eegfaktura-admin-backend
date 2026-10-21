@@ -87,7 +87,7 @@ object RegisterService {
 
   case class UserInfo(username: String, password: String, firstname: String, lastname: String, email: String)
 
-  /** A further person with access to a community (same rights as the admin login). */
+  /** A person with access to a community; all accounts have the same rights. */
   case class AccountUser(firstname: String, lastname: String, email: String)
 
   /** status: created, linked (existing account got the community) or failed (message says why). */
@@ -99,7 +99,7 @@ object RegisterService {
 
   case class RegisterEeg(eeg: Eeg, groups: List[String], replyTo: ActorRef[Command]) extends Command
 
-  /** accounts: the result per further account; the admin login is the code. */
+  /** accounts: the result per account of the registration's list (empty without a list). */
   case class EegRegistered(code: Int, message: String, accounts: List[AccountResult] = Nil) extends ResponseCommand
   case class EegRegisterError(code: Int, message: String) extends ResponseCommand
 
@@ -151,11 +151,10 @@ object RegisterService {
         }
     }
 
-  /** Further accounts of a registration without the admin login and without duplicates (e-mail, case-insensitive). */
-  def furtherAccounts(eeg: Eeg): List[AccountUser] =
-    eeg.accounts.getOrElse(Nil)
-      .filterNot(a => a.email.trim.equalsIgnoreCase(eeg.user.email.trim))
-      .foldLeft(List.empty[AccountUser])((acc, a) => if (acc.exists(_.email.trim.equalsIgnoreCase(a.email.trim))) acc else acc :+ a)
+  /** The accounts of a registration without duplicates (e-mail, case-insensitive); None: the old way, a login for the contact. */
+  def registrationAccounts(eeg: Eeg): Option[List[AccountUser]] =
+    eeg.accounts.filter(_.nonEmpty).map(_.foldLeft(List.empty[AccountUser])((acc, a) =>
+      if (acc.exists(_.email.trim.equalsIgnoreCase(a.email.trim))) acc else acc :+ a))
 
   def registerPonton(eeg: Eeg, pontonClient: RegisterPontonServiceClient)(implicit ec: ExecutionContext): Future[Boolean]  = {
     eeg.pontonInfo.pontonCommType match {
@@ -196,7 +195,7 @@ object RegisterService {
             replyTo ! EegRegisterError(400, MailNotSupported)
 
           case RegisterEeg(eeg, groups, replyTo) => {
-            val userExists = keycloakClient.checkUserAlreadyExist(eeg.user.email)
+            lazy val userExists = keycloakClient.checkUserAlreadyExist(eeg.user.email)
             val request = RegisterEegRequest(eeg.tenant, eeg.rcNumber.toUpperCase(), eeg.communityId, eeg.name, eeg.description,
               eeg.accountInfo.iban, eeg.accountInfo.owner, eeg.accountInfo.sepa,
               (eeg.businessInfo.legal match {
@@ -229,6 +228,9 @@ object RegisterService {
               eegReply <- eegClient.register(request).map(r => r.status == 201)
               pontonReply <- registerPonton(eeg, pontonClient)
             } yield (eegReply && pontonReply)).onComplete {
+              // With a list of accounts (platform#166) exactly these get a login, the contact only if listed.
+              case Success(state) if state && registrationAccounts(eeg).isDefined =>
+                replyTo ! EegRegistered(201, "", registrationAccounts(eeg).get.map(a => setupAccount(keycloakClient, eeg.rcNumber, a, groups)))
               case Success(state) if state =>
                 try {
                   log.info(s"Create Keycloak User [exists=${userExists}} - ${eeg.rcNumber}")
@@ -238,7 +240,7 @@ object RegisterService {
                         keycloakClient.configureUser(
                           userId = id, tenant = eeg.rcNumber, userInfo = eeg.user,
                           userGroups = keycloakClient.getGroups.filter(g => groups.contains(g.getName)))
-                        replyTo ! EegRegistered(201, "", furtherAccounts(eeg).map(a => setupAccount(keycloakClient, eeg.rcNumber, a, groups)))
+                        replyTo ! EegRegistered(201, "")
                       case _ => replyTo ! EegRegisterError(510, "Error adding tenant to user")
                     }
                   } else {
@@ -247,7 +249,7 @@ object RegisterService {
                     keycloakClient.createUser(keyCloakUser, eeg.rcNumber, userGroups)
 
                     log.info(s"Keycloak User created ${!userExists} - ${eeg.rcNumber}")
-                    replyTo ! EegRegistered(201, "", furtherAccounts(eeg).map(a => setupAccount(keycloakClient, eeg.rcNumber, a, groups)))
+                    replyTo ! EegRegistered(201, "")
                   }
                 } catch {
                   case e: Exception =>
