@@ -86,7 +86,7 @@ class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expected
     val subject = Option(claims.getSubject).getOrElse("")
     val preferredUsername = Option(claims.getStringClaim("preferred_username"))
     // Convert all claims to a Scala Map (careful with nested objects; keep them as Java Maps/lists)
-    val allClaims = Option(claims.getClaims).map(_.asScala.toMap).getOrElse(Map.empty).mapValues(_.asInstanceOf[Any]).toMap
+    val allClaims = Option(claims.getClaims).map(_.asScala.toMap).getOrElse(Map.empty).view.mapValues(_.asInstanceOf[Any]).toMap
     AuthenticatedUser(subject, preferredUsername, allClaims)
   }
 
