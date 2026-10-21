@@ -2,17 +2,8 @@ package at.ourproject
 
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.parser._
+import org.slf4j.LoggerFactory
 
-//object Config {
-//  case class Auth(url: String, clientId: String, clientSecret: String, realm: String)
-//  case class Configuration(auth: Auth)
-//
-//  def config(): Configuration = Configuration(
-//    Auth("https://login.ourproject.at/auth", "admin-cli", "qzCRMVWS6PnDwJ3v5JkZfWcTbBTZrBBU", "VFEEG"))
-////    Auth("http://localhost:8180/auth", "admin-cli", "bgqHFY8RHf6e2oHGyXYSepJ0xnzMr5kr", "vfeeg"))
-////    Auth("http://localhost:8180/auth", "realm-management", "QfNtbYYJdCwQ1vfCZpSi3792Vx7vTdoS", "vfeeg"))
-//}
-//
 //object AppConfig {
 //  case class KeycloakFile(path: String)
 //
@@ -32,14 +23,25 @@ object KeycloakConfig {
 
   val config: Config = ConfigFactory.load()
 
-  def keycloakAdminConfig: Configuration = Configuration(
-    Auth(
-      url = config.getString("keycloak.url"),
-      clientId = config.getString("keycloak.clientId"),
-      clientSecret = config.getString("keycloak.secret"),
-      realm = config.getString("keycloak.realm")
+  def keycloakAdminConfig: Configuration = adminConfigFrom(config)
+
+  // The admin-cli client secret has no default; fail fast when it is missing or empty.
+  private[ourproject] def adminConfigFrom(c: Config): Configuration = {
+    val secret = if (c.hasPath("keycloak.secret")) c.getString("keycloak.secret").trim else ""
+    if (secret.isEmpty) {
+      val msg = "KEYCLOAK_ADMIN_CLI_SECRET is not set (keycloak.secret): the admin-cli client secret is required"
+      LoggerFactory.getLogger(getClass).error(msg)
+      throw new IllegalStateException(msg)
+    }
+    Configuration(
+      Auth(
+        url = c.getString("keycloak.url"),
+        clientId = c.getString("keycloak.clientId"),
+        clientSecret = secret,
+        realm = c.getString("keycloak.realm")
+      )
     )
-  )
+  }
 
   def keycloakJWTConfig: Configuration = Configuration(
     Auth(

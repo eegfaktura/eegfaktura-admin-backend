@@ -8,6 +8,15 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Security
+- The Keycloak `admin-cli` client secret no longer has a default in `application.conf`
+  (vfeeg-development/eegfaktura-platform#183). `KEYCLOAK_ADMIN_CLI_SECRET` is now required: without
+  it (or with an empty value) the service logs an error and refuses to start. All known deployments
+  (prod, pilot, `eegfaktura-docker-compose`, the `eegfaktura-dev` stack) already set it. The unused
+  `keycloak.json` (same secret) and a commented-out legacy config block with old secrets were
+  removed. The values remain in the git history: **operators must rotate the `admin-cli` secret in
+  Keycloak** for every zone and update the Kubernetes secret / compose `.env`.
+
 ## [1.0.6] – 2026-10-18
 
 ### Added
