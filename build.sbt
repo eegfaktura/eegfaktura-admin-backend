@@ -31,14 +31,14 @@ lazy val root = (project in file("."))
         akka, akkaStream, akkaHttp, pekkoSlf4j, pekkoDiscovery,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
         slick, slickHikaricp, postgresLib, nimbusdsJwt,
-        jacksonCore
+        jacksonCore, grpcNettyShaded
     ),
 
     libraryDependencies ++= Seq(
       scalaTest, streamTestkit, akkaTestkit,
     ).map(_ % Test),
 
-    dependencyOverrides ++= jacksonFamily,
+    dependencyOverrides ++= jacksonFamily ++ grpcFamily,
 
   )
 

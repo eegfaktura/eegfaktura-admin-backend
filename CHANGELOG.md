@@ -12,6 +12,8 @@ this changelog highlights the changes relevant for overview and operations.
 - Dependency updates for known HIGH CVEs found by the security scan
   (vfeeg-development/eegfaktura-platform#183), all patch/minor:
   - Jackson (`jackson-core` and its family, via Keycloak) 2.17.2 → 2.18.12.
+  - gRPC (`grpc-netty-shaded` and the other `io.grpc` libraries, via pekko-grpc) 1.67.1 → 1.75.0, the
+    version pekko-grpc 1.2.0 uses. The generated gRPC code is unchanged.
 
 ## [1.1.0] – 2026-10-21
 
