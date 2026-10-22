@@ -8,11 +8,14 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
-### Added
-- Regression test for the bearer token checks (`KeycloakJwtAuthenticatorSpec`,
-  vfeeg-development/eegfaktura-platform#183): a valid RS256 token is accepted; expired, without `exp`,
-  wrong `iss` or `aud`, signed with a foreign key, RS512, HS256, `alg=none` and malformed tokens are
-  rejected. The JWKS comes from a local HTTP server on 127.0.0.1; production code is unchanged.
+### Changed
+- Tests: regression test for the bearer token checks (`KeycloakJwtAuthenticatorSpec`,
+  vfeeg-development/eegfaktura-platform#183). A valid RS256 token is accepted, the issuer compared
+  case-insensitively; rejected are tokens expired 30 s ago (only the service's own `exp` check catches
+  that, nimbus allows 60 s skew) or long ago, without `exp`, with a wrong `iss` or `aud`, signed with a
+  foreign key, with an unknown `kid`, RS512, HS256 signed with the RSA public key, `alg=none` and
+  malformed tokens. Each negative case is the known-good token with one change. The JWKS comes from a
+  local HTTP server on 127.0.0.1; production code is unchanged.
 
 ## [1.1.0] – 2026-10-21
 

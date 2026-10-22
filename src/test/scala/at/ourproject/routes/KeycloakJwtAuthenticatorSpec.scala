@@ -14,90 +14,124 @@ import org.scalatest.wordspec.AnyWordSpecLike
 
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
+import java.text.ParseException
 import java.util.Date
 import scala.concurrent.Await
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 // Regression test for the bearer token checks (platform#183): the JWKS is served from a local
-// HTTP server on 127.0.0.1, no other network access.
+// HTTP server on 127.0.0.1, no other network access. Every negative case is the known-good token
+// with exactly one thing changed, and each case first checks that the unchanged token is accepted,
+// so a broken JWKS fetch or signature path cannot make the negative cases pass on their own.
 class KeycloakJwtAuthenticatorSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
   private val issuer = "https://keycloak.test/realms/test"
   private val audience = "account"
-  private val signingKeyPair: RSAKey = new RSAKeyGenerator(2048).keyID("k1").generate()
+  private val keyId = "k1"
+  private val signingKeyPair: RSAKey = new RSAKeyGenerator(2048).keyID(keyId).generate()
   // another key pair with the same kid: its signature must not verify against the published key
-  private val foreignKey: RSAKey = new RSAKeyGenerator(2048).keyID("k1").generate()
+  private val foreignKey: RSAKey = new RSAKeyGenerator(2048).keyID(keyId).generate()
 
-  private val server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
-  server.createContext("/jwks", exchange => {
-    val body = new JWKSet(signingKeyPair.toPublicJWK).toString.getBytes(StandardCharsets.UTF_8)
-    exchange.getResponseHeaders.add("Content-Type", "application/json")
-    exchange.sendResponseHeaders(200, body.length)
-    exchange.getResponseBody.write(body)
-    exchange.close()
-  })
-  server.start()
+  private var server: HttpServer = _
+  private var authenticator: KeycloakJwtAuthenticator = _
 
-  private val authenticator =
-    new KeycloakJwtAuthenticator(s"http://127.0.0.1:${server.getAddress.getPort}/jwks", issuer, audience)
+  override def beforeAll(): Unit = {
+    server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0)
+    server.createContext("/jwks", exchange => {
+      val body = new JWKSet(signingKeyPair.toPublicJWK).toString.getBytes(StandardCharsets.UTF_8)
+      exchange.getResponseHeaders.add("Content-Type", "application/json")
+      exchange.sendResponseHeaders(200, body.length)
+      exchange.getResponseBody.write(body)
+      exchange.close()
+    })
+    server.start()
+    authenticator =
+      new KeycloakJwtAuthenticator(s"http://127.0.0.1:${server.getAddress.getPort}/jwks", issuer, audience)
+    // RemoteJWKSet fetches with 500 ms timeouts (not configurable from outside): warm the server and
+    // the key cache, so a slow first request on a cold runner does not fail a test.
+    val warm = (1 to 5).iterator.map(_ => authenticate(goodToken())).find(_.isDefined).flatten
+    assert(warm.isDefined, "the known-good token is not accepted - JWKS not reachable?")
+  }
 
-  override def afterAll(): Unit = server.stop(0)
+  override def afterAll(): Unit = if (server != null) server.stop(0)
 
   private def inOneMinute = new Date(System.currentTimeMillis() + 60000)
+  private def secondsAgo(s: Int) = new Date(System.currentTimeMillis() - s * 1000L)
 
-  private def claims(exp: Option[Date] = Some(inOneMinute), iss: String = issuer, aud: String = audience) = {
-    val builder = new JWTClaimsSet.Builder()
-      .subject("user-1").issuer(iss).audience(aud).claim("preferred_username", "user")
-    exp.foreach(builder.expirationTime)
-    builder.build()
-  }
+  private def goodClaims: JWTClaimsSet.Builder = new JWTClaimsSet.Builder()
+    .subject("user-1").issuer(issuer).audience(audience).expirationTime(inOneMinute)
+    .claim("preferred_username", "user")
 
-  private def signRsa(c: JWTClaimsSet, signingKey: RSAKey = signingKeyPair, alg: JWSAlgorithm = JWSAlgorithm.RS256) = {
-    val jwt = new SignedJWT(new JWSHeader.Builder(alg).keyID("k1").build(), c)
-    jwt.sign(new RSASSASigner(signingKey))
+  private def sign(claims: JWTClaimsSet, key: RSAKey = signingKeyPair, alg: JWSAlgorithm = JWSAlgorithm.RS256,
+                   kid: String = keyId): String = {
+    val jwt = new SignedJWT(new JWSHeader.Builder(alg).keyID(kid).build(), claims)
+    jwt.sign(new RSASSASigner(key))
     jwt.serialize()
   }
+
+  private def goodToken(): String = sign(goodClaims.build())
 
   private def authenticate(token: String) =
     Await.result(authenticator.authenticate(Credentials(Some(OAuth2BearerToken(token)))), 10.seconds)
 
+  // The unchanged token is accepted, the changed one is rejected.
+  private def rejects(changed: String) = {
+    authenticate(goodToken()) should not be empty
+    authenticate(changed) shouldBe None
+  }
+
   "KeycloakJwtAuthenticator" should {
     "accept a valid RS256 token" in {
-      val user = authenticate(signRsa(claims()))
+      val user = authenticate(goodToken())
       user.map(_.subject) shouldBe Some("user-1")
       user.flatMap(_.preferredUsername) shouldBe Some("user")
     }
-    "reject an expired token" in {
-      authenticate(signRsa(claims(exp = Some(new Date(System.currentTimeMillis() - 120000))))) shouldBe None
+    "accept the issuer case-insensitively (as the service compares it)" in {
+      authenticate(sign(goodClaims.issuer(issuer.toUpperCase).build())).map(_.subject) shouldBe Some("user-1")
+    }
+    // nimbus' own check allows 60 s clock skew; a token expired 30 s ago is only rejected by the
+    // service's zero-tolerance exp check
+    "reject a token expired 30 seconds ago" in {
+      rejects(sign(goodClaims.expirationTime(secondsAgo(30)).build()))
+    }
+    "reject a token expired long ago" in {
+      rejects(sign(goodClaims.expirationTime(secondsAgo(3600)).build()))
     }
     "reject a token without exp" in {
-      authenticate(signRsa(claims(exp = None))) shouldBe None
+      rejects(sign(goodClaims.expirationTime(null).build()))
     }
     "reject a wrong issuer" in {
-      authenticate(signRsa(claims(iss = "https://other.test/realms/test"))) shouldBe None
+      rejects(sign(goodClaims.issuer("https://other.test/realms/test").build()))
     }
     "reject a wrong audience" in {
-      authenticate(signRsa(claims(aud = "other"))) shouldBe None
+      rejects(sign(goodClaims.audience("other").build()))
     }
     "reject a token signed with a foreign key" in {
-      authenticate(signRsa(claims(), signingKey = foreignKey)) shouldBe None
+      rejects(sign(goodClaims.build(), key = foreignKey))
+    }
+    "reject an unknown kid" in {
+      rejects(sign(goodClaims.build(), kid = "unknown"))
     }
     "reject RS512" in {
-      authenticate(signRsa(claims(), alg = JWSAlgorithm.RS512)) shouldBe None
+      rejects(sign(goodClaims.build(), alg = JWSAlgorithm.RS512))
     }
-    "reject HS256" in {
-      val jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.HS256).keyID("k1").build(), claims())
-      jwt.sign(new MACSigner(Array.fill[Byte](32)(7)))
-      authenticate(jwt.serialize()) shouldBe None
+    "reject HS256 signed with the published RSA public key (key confusion)" in {
+      val jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.HS256).keyID(keyId).build(), goodClaims.build())
+      jwt.sign(new MACSigner(signingKeyPair.toRSAPublicKey.getEncoded))
+      rejects(jwt.serialize())
     }
     "reject alg=none" in {
-      authenticate(new PlainJWT(claims()).serialize()) shouldBe None
+      val token = new PlainJWT(goodClaims.build()).serialize()
+      // rejected already at SignedJWT.parse: "none" is no JWS algorithm
+      a[ParseException] should be thrownBy SignedJWT.parse(token)
+      rejects(token)
     }
     "reject a malformed token" in {
-      authenticate("abc.def.ghi") shouldBe None
+      rejects("abc.def.ghi")
     }
     "reject missing credentials" in {
+      authenticate(goodToken()) should not be empty
       Await.result(authenticator.authenticate(Credentials(None)), 10.seconds) shouldBe None
     }
   }
