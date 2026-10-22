@@ -61,7 +61,37 @@ object Dependencies {
   lazy val slick = "com.typesafe.slick" %% "slick" % SlickVersion
   lazy val slickHikaricp = "com.typesafe.slick" %% "slick-hikaricp" % SlickVersion
   lazy val postgresLib = "org.postgresql" % "postgresql" % "42.7.13"
-  lazy val nimbusdsJwt = "com.nimbusds" % "nimbus-jose-jwt" % "9.31"
+  lazy val nimbusdsJwt = "com.nimbusds" % "nimbus-jose-jwt" % "9.37.4"
+
+  // Pins for transitive dependencies with known HIGH CVEs (platform#183). They are declared as
+  // dependencies (like pekkoDiscovery), whole families included, so that the exported pom, which the
+  // security scan reads, resolves the same versions as the runtime; dependencyOverrides alone do not
+  // reach the pom.
+  private val JacksonVersion = "2.18.12"
+  lazy val jacksonCore = "com.fasterxml.jackson.core" % "jackson-core" % JacksonVersion
+  lazy val jacksonFamily = Seq(
+    jacksonCore,
+    "com.fasterxml.jackson.core" % "jackson-databind" % JacksonVersion,
+    "com.fasterxml.jackson.core" % "jackson-annotations" % JacksonVersion,
+    "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8" % JacksonVersion,
+    "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % JacksonVersion,
+    // used by keycloak-admin-client (RESTEasy) next to databind
+    "com.fasterxml.jackson.jakarta.rs" % "jackson-jakarta-rs-base" % JacksonVersion,
+    "com.fasterxml.jackson.jakarta.rs" % "jackson-jakarta-rs-json-provider" % JacksonVersion,
+    "com.fasterxml.jackson.module" % "jackson-module-jakarta-xmlbind-annotations" % JacksonVersion,
+  )
+  // Same version as pekko-grpc 1.2.0 uses; the sbt plugin stays on 1.1.1 (1.2.0 needs sbt 1.9+,
+  // this build is on 1.8.3), so only the runtime libraries move, the generated code does not change.
+  private val GrpcVersion = "1.75.0"
+  lazy val grpcNettyShaded = "io.grpc" % "grpc-netty-shaded" % GrpcVersion
+  lazy val grpcFamily = Seq(grpcNettyShaded) ++
+    Seq("grpc-api", "grpc-context", "grpc-core", "grpc-protobuf", "grpc-protobuf-lite", "grpc-stub", "grpc-util")
+      .map("io.grpc" % _ % GrpcVersion)
+  // scalapb-runtime 0.11.x declares protobuf-java 3.19.6; at runtime grpc-protobuf already brings 3.25.x.
+  // Only the runtime library: the code generator (protoc in the sbt plugin) is not affected.
+  lazy val protobufJava = "com.google.protobuf" % "protobuf-java" % "3.25.8"
+  // via circe-parser (pom: 1.4.0, runtime: 1.6.0 through pekko-http-circe's circe 0.14.12)
+  lazy val jawnParser = "org.typelevel" %% "jawn-parser" % "1.7.0"
 //  "org.postgresql" % "postgresql" % "42.2.5"
 
   lazy val slickTestkit = "com.typesafe.slick" %% "slick-testkit" % SlickVersion
