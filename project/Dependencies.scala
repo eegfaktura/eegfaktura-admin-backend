@@ -64,9 +64,9 @@ object Dependencies {
   lazy val nimbusdsJwt = "com.nimbusds" % "nimbus-jose-jwt" % "9.37.4"
 
   // Pins for transitive dependencies with known HIGH CVEs (platform#183). They are declared as
-  // dependencies (like pekkoDiscovery) so that the exported pom, which the security scan reads,
-  // carries the fixed version too; dependencyOverrides alone do not reach the pom.
-  // dependencyOverrides (build.sbt) keep the rest of each library family on the same version.
+  // dependencies (like pekkoDiscovery), whole families included, so that the exported pom, which the
+  // security scan reads, resolves the same versions as the runtime; dependencyOverrides alone do not
+  // reach the pom.
   private val JacksonVersion = "2.18.12"
   lazy val jacksonCore = "com.fasterxml.jackson.core" % "jackson-core" % JacksonVersion
   lazy val jacksonFamily = Seq(
