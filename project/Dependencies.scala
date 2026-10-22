@@ -62,6 +62,20 @@ object Dependencies {
   lazy val slickHikaricp = "com.typesafe.slick" %% "slick-hikaricp" % SlickVersion
   lazy val postgresLib = "org.postgresql" % "postgresql" % "42.7.13"
   lazy val nimbusdsJwt = "com.nimbusds" % "nimbus-jose-jwt" % "9.31"
+
+  // Pins for transitive dependencies with known HIGH CVEs (platform#183). They are declared as
+  // dependencies (like pekkoDiscovery) so that the exported pom, which the security scan reads,
+  // carries the fixed version too; dependencyOverrides alone do not reach the pom.
+  // dependencyOverrides (build.sbt) keep the rest of each library family on the same version.
+  private val JacksonVersion = "2.18.12"
+  lazy val jacksonCore = "com.fasterxml.jackson.core" % "jackson-core" % JacksonVersion
+  lazy val jacksonFamily = Seq(
+    jacksonCore,
+    "com.fasterxml.jackson.core" % "jackson-databind" % JacksonVersion,
+    "com.fasterxml.jackson.core" % "jackson-annotations" % JacksonVersion,
+    "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8" % JacksonVersion,
+    "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % JacksonVersion,
+  )
 //  "org.postgresql" % "postgresql" % "42.2.5"
 
   lazy val slickTestkit = "com.typesafe.slick" %% "slick-testkit" % SlickVersion

@@ -30,12 +30,15 @@ lazy val root = (project in file("."))
         /*slf4j,*/ scalaLogging, logback,
         akka, akkaStream, akkaHttp, pekkoSlf4j, pekkoDiscovery,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
-        slick, slickHikaricp, postgresLib, nimbusdsJwt
+        slick, slickHikaricp, postgresLib, nimbusdsJwt,
+        jacksonCore
     ),
 
     libraryDependencies ++= Seq(
       scalaTest, streamTestkit, akkaTestkit,
     ).map(_ % Test),
+
+    dependencyOverrides ++= jacksonFamily,
 
   )
 

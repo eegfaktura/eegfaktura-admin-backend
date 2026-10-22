@@ -8,6 +8,11 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Security
+- Dependency updates for known HIGH CVEs found by the security scan
+  (vfeeg-development/eegfaktura-platform#183), all patch/minor:
+  - Jackson (`jackson-core` and its family, via Keycloak) 2.17.2 → 2.18.12.
+
 ## [1.1.0] – 2026-10-21
 
 ### Added
