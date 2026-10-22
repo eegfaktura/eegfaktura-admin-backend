@@ -8,6 +8,19 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Security
+- Dependency updates for known HIGH CVEs found by the security scan
+  (vfeeg-development/eegfaktura-platform#183), all patch/minor:
+  - Jackson (`jackson-core` and its family, via Keycloak, including the Jakarta RS modules of the
+    Keycloak admin client) 2.17.2 / 2.15.4 → 2.18.12.
+  - gRPC (`grpc-netty-shaded` and the other `io.grpc` libraries, via pekko-grpc) 1.67.1 → 1.75.0, the
+    version pekko-grpc 1.2.0 uses. The generated gRPC code is unchanged; a new test runs the generated
+    client over h2c against the generated server handler (`GrpcClientRoundTripSpec`).
+  - `nimbus-jose-jwt` (JWT validation) 9.31 → 9.37.4. Bearer token checks (RS256 only, `exp`, `iss`,
+    `aud`) behave as before.
+  - `protobuf-java` pinned to 3.25.8 (scalapb-runtime declares 3.19.6; at runtime 3.25.x was already used).
+  - `jawn-parser` (JSON parser behind circe) 1.4.0 / 1.6.0 → 1.7.0.
+
 ## [1.1.0] – 2026-10-21
 
 ### Added
