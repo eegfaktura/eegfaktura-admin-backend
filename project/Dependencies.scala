@@ -83,6 +83,9 @@ object Dependencies {
   lazy val grpcFamily = Seq(grpcNettyShaded) ++
     Seq("grpc-api", "grpc-context", "grpc-core", "grpc-protobuf", "grpc-protobuf-lite", "grpc-stub", "grpc-util")
       .map("io.grpc" % _ % GrpcVersion)
+  // scalapb-runtime 0.11.x declares protobuf-java 3.19.6; at runtime grpc-protobuf already brings 3.25.x.
+  // Only the runtime library: the code generator (protoc in the sbt plugin) is not affected.
+  lazy val protobufJava = "com.google.protobuf" % "protobuf-java" % "3.25.8"
 //  "org.postgresql" % "postgresql" % "42.2.5"
 
   lazy val slickTestkit = "com.typesafe.slick" %% "slick-testkit" % SlickVersion
