@@ -75,6 +75,10 @@ object Dependencies {
     "com.fasterxml.jackson.core" % "jackson-annotations" % JacksonVersion,
     "com.fasterxml.jackson.datatype" % "jackson-datatype-jdk8" % JacksonVersion,
     "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % JacksonVersion,
+    // used by keycloak-admin-client (RESTEasy) next to databind
+    "com.fasterxml.jackson.jakarta.rs" % "jackson-jakarta-rs-base" % JacksonVersion,
+    "com.fasterxml.jackson.jakarta.rs" % "jackson-jakarta-rs-json-provider" % JacksonVersion,
+    "com.fasterxml.jackson.module" % "jackson-module-jakarta-xmlbind-annotations" % JacksonVersion,
   )
   // Same version as pekko-grpc 1.2.0 uses; the sbt plugin stays on 1.1.1 (1.2.0 needs sbt 1.9+,
   // this build is on 1.8.3), so only the runtime libraries move, the generated code does not change.
