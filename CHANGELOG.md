@@ -14,6 +14,8 @@ this changelog highlights the changes relevant for overview and operations.
   - Jackson (`jackson-core` and its family, via Keycloak) 2.17.2 → 2.18.12.
   - gRPC (`grpc-netty-shaded` and the other `io.grpc` libraries, via pekko-grpc) 1.67.1 → 1.75.0, the
     version pekko-grpc 1.2.0 uses. The generated gRPC code is unchanged.
+  - `nimbus-jose-jwt` (JWT validation) 9.31 → 9.37.4. Bearer token checks (RS256 only, `exp`, `iss`,
+    `aud`) behave as before.
 
 ## [1.1.0] – 2026-10-21
 
