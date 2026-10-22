@@ -8,6 +8,15 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Changed
+- Tests: regression test for the bearer token checks (`KeycloakJwtAuthenticatorSpec`,
+  vfeeg-development/eegfaktura-platform#183). A valid RS256 token is accepted, the issuer compared
+  case-insensitively; rejected are tokens expired 30 s ago (only the service's own `exp` check catches
+  that, nimbus allows 60 s skew) or long ago, without `exp`, with a wrong `iss` or `aud`, signed with a
+  foreign key, with an unknown `kid`, RS512, HS256 signed with the RSA public key, `alg=none` and
+  malformed tokens. Each negative case is the known-good token with one change. The JWKS comes from a
+  local HTTP server on 127.0.0.1; production code is unchanged.
+
 ### Security
 - Dependency updates for known HIGH CVEs found by the security scan
   (vfeeg-development/eegfaktura-platform#183), all patch/minor:
