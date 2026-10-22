@@ -86,6 +86,8 @@ object Dependencies {
   // scalapb-runtime 0.11.x declares protobuf-java 3.19.6; at runtime grpc-protobuf already brings 3.25.x.
   // Only the runtime library: the code generator (protoc in the sbt plugin) is not affected.
   lazy val protobufJava = "com.google.protobuf" % "protobuf-java" % "3.25.8"
+  // via circe-parser (pom: 1.4.0, runtime: 1.6.0 through pekko-http-circe's circe 0.14.12)
+  lazy val jawnParser = "org.typelevel" %% "jawn-parser" % "1.7.0"
 //  "org.postgresql" % "postgresql" % "42.2.5"
 
   lazy val slickTestkit = "com.typesafe.slick" %% "slick-testkit" % SlickVersion

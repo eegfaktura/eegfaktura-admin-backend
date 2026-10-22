@@ -17,6 +17,7 @@ this changelog highlights the changes relevant for overview and operations.
   - `nimbus-jose-jwt` (JWT validation) 9.31 → 9.37.4. Bearer token checks (RS256 only, `exp`, `iss`,
     `aud`) behave as before.
   - `protobuf-java` pinned to 3.25.8 (scalapb-runtime declares 3.19.6; at runtime 3.25.x was already used).
+  - `jawn-parser` (JSON parser behind circe) 1.4.0 / 1.6.0 → 1.7.0.
 
 ## [1.1.0] – 2026-10-21
 
