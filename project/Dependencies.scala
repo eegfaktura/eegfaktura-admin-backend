@@ -91,7 +91,8 @@ object Dependencies {
   // via circe-parser (pom: 1.4.0, runtime: 1.6.0 through pekko-http-circe's circe 0.14.12)
   lazy val jawnParser = "org.typelevel" %% "jawn-parser" % "1.7.0"
   // via keycloak-admin-client -> resteasy-multipart-provider -> apache-mime4j-storage; the RESTEasy BOM
-  // sets 2.11.0 (CVE-2024-47554, fixed in 2.14.0) (platform#190)
+  // sets 2.11.0 (CVE-2024-47554, fixed in 2.14.0) (platform#190). Remove when the RESTEasy BOM of
+  // keycloak-admin-client manages commons-io >= 2.14.0.
   lazy val commonsIo = "commons-io" % "commons-io" % "2.20.0"
 //  "org.postgresql" % "postgresql" % "42.2.5"
 
