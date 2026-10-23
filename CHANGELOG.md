@@ -18,6 +18,12 @@ this changelog highlights the changes relevant for overview and operations.
   local HTTP server on 127.0.0.1; production code is unchanged.
 
 ### Security
+- Removed `keycloak-adapter-core` 25.0.3 (vfeeg-development/eegfaktura-platform#190). Nothing used it;
+  the Keycloak admin API calls go through `keycloak-admin-client` 26.0.6 as before. It brought
+  `bcprov-jdk18on` 1.74 (2 CRITICAL, 1 HIGH) and `keycloak-server-spi-private` 25.0.3 (1 HIGH) into the
+  image, together with `bcpkix`/`bcutil`, `keycloak-crypto-default` and `keycloak-server-spi`.
+- `commons-io` 2.11.0 → 2.20.0 (CVE-2024-47554, HIGH; platform#190). It comes through
+  `keycloak-admin-client` → RESTEasy multipart → `apache-mime4j-storage`, not through the adapter.
 - Dependency updates for known HIGH CVEs found by the security scan
   (vfeeg-development/eegfaktura-platform#183), all patch/minor:
   - Jackson (`jackson-core` and its family, via Keycloak, including the Jakarta RS modules of the

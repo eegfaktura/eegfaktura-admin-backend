@@ -4,7 +4,6 @@ object Dependencies {
 
   private val githubPureConfigVersion = "0.17.4"
   private val keycloakVersion = "26.0.6"
-  private val keycloakAdapterVersion = "25.0.3"
 //  private val keycloakVersion = "24.0.2"
   private val log4CatsVersion = "2.6.0"
   private val mockitoScalaVersion = "1.17.14"
@@ -43,7 +42,6 @@ object Dependencies {
   lazy val mockitoScalaTest = "org.mockito" %% "mockito-scala-scalatest" % mockitoScalaVersion
   lazy val keycloakCore = "org.keycloak" % "keycloak-core" % keycloakVersion exclude("com.fasterxml.jackson.core", "jackson-databind")
   lazy val keycloakAdminClient = "org.keycloak" % "keycloak-admin-client" % keycloakVersion
-  lazy val keycloakAdapter = "org.keycloak" % "keycloak-adapter-core" % keycloakAdapterVersion exclude("com.fasterxml.jackson.core", "jackson-databind")
   lazy val sttpClient3 = "com.softwaremill.sttp.client3" %% "core" % sttpClient3Version
   lazy val akka = "org.apache.pekko" %% "pekko-actor-typed" % PekkoVersion
   lazy val akkaStream = "org.apache.pekko" %% "pekko-stream" % PekkoVersion
@@ -92,6 +90,9 @@ object Dependencies {
   lazy val protobufJava = "com.google.protobuf" % "protobuf-java" % "3.25.8"
   // via circe-parser (pom: 1.4.0, runtime: 1.6.0 through pekko-http-circe's circe 0.14.12)
   lazy val jawnParser = "org.typelevel" %% "jawn-parser" % "1.7.0"
+  // via keycloak-admin-client -> resteasy-multipart-provider -> apache-mime4j-storage; the RESTEasy BOM
+  // sets 2.11.0 (CVE-2024-47554, fixed in 2.14.0) (platform#190)
+  lazy val commonsIo = "commons-io" % "commons-io" % "2.20.0"
 //  "org.postgresql" % "postgresql" % "42.2.5"
 
   lazy val slickTestkit = "com.typesafe.slick" %% "slick-testkit" % SlickVersion

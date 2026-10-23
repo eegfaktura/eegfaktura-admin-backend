@@ -25,13 +25,13 @@ lazy val root = (project in file("."))
     name := "eegfaktura-registration",
     // Pekko ist auf Maven Central, kein Lightbend-Resolver mehr noetig
     libraryDependencies ++= Seq(
-        keycloakCore, keycloakAdminClient, keycloakAdapter,
+        keycloakCore, keycloakAdminClient,
         sttpClient3,
         /*slf4j,*/ scalaLogging, logback,
         akka, akkaStream, akkaHttp, pekkoSlf4j, pekkoDiscovery,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
         slick, slickHikaricp, postgresLib, nimbusdsJwt,
-        protobufJava, jawnParser
+        protobufJava, jawnParser, commonsIo
     ) ++ jacksonFamily ++ grpcFamily,
 
     libraryDependencies ++= Seq(
