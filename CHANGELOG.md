@@ -36,6 +36,12 @@ this changelog highlights the changes relevant for overview and operations.
   - `protobuf-java` pinned to 3.25.8 (scalapb-runtime declares 3.19.6; at runtime 3.25.x was already used).
   - `jawn-parser` (JSON parser behind circe) 1.4.0 / 1.6.0 → 1.7.0.
 
+### Tests
+- `RegisterServiceSpec` asserts behaviour instead of printing: the JSON of `POST /eeg/register` as the admin web sends it (decoding, enumeration names, rejection of unknown values and of a missing `user`) and `registerPonton` against a recording gRPC stub (no call for `NONE` or offline, upper-cased RC number and credentials, communication type `KEP`, failure on a non-200 reply).
+
+### CI
+- `rolling-release.yml`: no image build on a draft pull request — it runs when the pull request is marked ready for review (`ready_for_review`) and on every later push to it; `pr-checks.yml` still checks drafts. Pushes, tags and the deploy dispatch are unchanged.
+
 ## [1.1.0] – 2026-10-21
 
 ### Added
