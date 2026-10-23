@@ -8,6 +8,34 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Changed
+- Tests: regression test for the bearer token checks (`KeycloakJwtAuthenticatorSpec`,
+  vfeeg-development/eegfaktura-platform#183). A valid RS256 token is accepted, the issuer compared
+  case-insensitively; rejected are tokens expired 30 s ago (only the service's own `exp` check catches
+  that, nimbus allows 60 s skew) or long ago, without `exp`, with a wrong `iss` or `aud`, signed with a
+  foreign key, with an unknown `kid`, RS512, HS256 signed with the RSA public key, `alg=none` and
+  malformed tokens. Each negative case is the known-good token with one change. The JWKS comes from a
+  local HTTP server on 127.0.0.1; production code is unchanged.
+
+### Security
+- Removed `keycloak-adapter-core` 25.0.3 (vfeeg-development/eegfaktura-platform#190). Nothing used it;
+  the Keycloak admin API calls go through `keycloak-admin-client` 26.0.6 as before. It brought
+  `bcprov-jdk18on` 1.74 (2 CRITICAL, 1 HIGH) and `keycloak-server-spi-private` 25.0.3 (1 HIGH) into the
+  image, together with `bcpkix`/`bcutil`, `keycloak-crypto-default` and `keycloak-server-spi`.
+- `commons-io` 2.11.0 → 2.20.0 (CVE-2024-47554, HIGH; platform#190). It comes through
+  `keycloak-admin-client` → RESTEasy multipart → `apache-mime4j-storage`, not through the adapter.
+- Dependency updates for known HIGH CVEs found by the security scan
+  (vfeeg-development/eegfaktura-platform#183), all patch/minor:
+  - Jackson (`jackson-core` and its family, via Keycloak, including the Jakarta RS modules of the
+    Keycloak admin client) 2.17.2 / 2.15.4 → 2.18.12.
+  - gRPC (`grpc-netty-shaded` and the other `io.grpc` libraries, via pekko-grpc) 1.67.1 → 1.75.0, the
+    version pekko-grpc 1.2.0 uses. The generated gRPC code is unchanged; a new test runs the generated
+    client over h2c against the generated server handler (`GrpcClientRoundTripSpec`).
+  - `nimbus-jose-jwt` (JWT validation) 9.31 → 9.37.4. Bearer token checks (RS256 only, `exp`, `iss`,
+    `aud`) behave as before.
+  - `protobuf-java` pinned to 3.25.8 (scalapb-runtime declares 3.19.6; at runtime 3.25.x was already used).
+  - `jawn-parser` (JSON parser behind circe) 1.4.0 / 1.6.0 → 1.7.0.
+
 ### Tests
 - `RegisterServiceSpec` asserts behaviour instead of printing: the JSON of `POST /eeg/register` as the admin web sends it (decoding, enumeration names, rejection of unknown values and of a missing `user`) and `registerPonton` against a recording gRPC stub (no call for `NONE` or offline, upper-cased RC number and credentials, communication type `KEP`, failure on a non-200 reply).
 
