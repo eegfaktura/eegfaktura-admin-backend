@@ -8,6 +8,8 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.1.1] – 2026-10-25
+
 ### Changed
 - Tests: regression test for the bearer token checks (`KeycloakJwtAuthenticatorSpec`,
   vfeeg-development/eegfaktura-platform#183). A valid RS256 token is accepted, the issuer compared
