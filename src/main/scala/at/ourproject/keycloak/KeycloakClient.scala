@@ -75,7 +75,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       userRepresentation.setFirstName(user.firstName)
       userRepresentation.setLastName(user.lastName)
       userRepresentation.setEmail(user.email)
-      userRepresentation.setAttributes(Map("tenant" -> List(KeycloakClient.tenantAttribute(List(rcNumber.toUpperCase()))).asJava).asJava)
+      userRepresentation.setAttributes(Map("tenant" -> KeycloakClient.tenantValues(List(rcNumber.toUpperCase())).asJava).asJava)
 
       // The e-mail is checked before; a conflict here is a username another person already has
       // (same name prefix): try the next candidate. A username given by the operator is used as it is.
@@ -335,11 +335,12 @@ object KeycloakClient {
   /** Expected refusals (not a Keycloak fault): the operator has to clear them in Keycloak. */
   val Refusals: Set[String] = Set(EmailNotVerified, LessRights)
 
-  /** The tenant attribute: a JSON list as text. */
-  def tenantAttribute(tenants: List[String]): String = {
-    import io.circe.syntax._
-    tenants.asJson.noSpaces
-  }
+  /**
+   * The tenant attribute values: one JSON string per tenant (`"RC100100"`). The token mapper (multivalued, aggregated,
+   * JSON) turns them into the flat claim `["RC100100", …]` every service parses; one value holding a JSON list would
+   * become a nested list (keycloak 261005-ca1, admin-backend 261005-ca3).
+   */
+  def tenantValues(tenants: List[String]): List[String] = tenants.map(t => io.circe.Json.fromString(t).noSpaces)
 
   /** The username, then the username with 2 … 9 appended. */
   def usernameCandidates(base: String): List[String] = base :: (2 to 9).map(i => s"$base$i").toList
@@ -359,11 +360,12 @@ object KeycloakClient {
   /** Do the attribute values contain the tenant? Case-insensitive. */
   def hasTenant(values: List[String], tenant: String): Boolean = tenantsOf(values).exists(_.equalsIgnoreCase(tenant))
 
-  /** The attribute values with the tenant added, in the form they already have; unchanged if it is there. */
+  /**
+   * The attribute values with the tenant added (if it is not there, case-insensitive), read in either form and always
+   * written as one JSON string per tenant — an account written by an older version is healed on the next change.
+   */
   def withTenant(values: List[String], tenant: String): List[String] =
-    if (hasTenant(values, tenant)) values
-    else if (values.isEmpty || values.exists(v => jsonList(v).isDefined)) List(tenantAttribute(tenantsOf(values) :+ tenant))
-    else values :+ io.circe.Json.fromString(tenant).noSpaces
+    tenantValues(tenantsOf(values) ++ (if (hasTenant(values, tenant)) Nil else List(tenant)))
 
   private val secureRandom = new java.security.SecureRandom()
 

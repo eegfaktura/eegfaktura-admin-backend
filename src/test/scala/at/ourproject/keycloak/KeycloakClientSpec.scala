@@ -43,11 +43,15 @@ class KeycloakClientSpec extends AnyWordSpecLike with Matchers {
     }
   }
 
-  "tenantAttribute" should {
-    "write a JSON list that hasTenant reads back" in {
-      val a = KeycloakClient.tenantAttribute(List("RC100001"))
-      a shouldBe """["RC100001"]"""
-      KeycloakClient.hasTenant(List(a), "rc100001") shouldBe true
+  "tenantValues" should {
+    "write one JSON string per tenant that hasTenant reads back" in {
+      val v = KeycloakClient.tenantValues(List("RC100001", "GC100002-001"))
+      v shouldBe List("\"RC100001\"", "\"GC100002-001\"")
+      KeycloakClient.hasTenant(v, "rc100001") shouldBe true
+    }
+
+    "write the new user's single tenant as one JSON string" in {
+      KeycloakClient.tenantValues(List("RC1")) shouldBe List("\"RC1\"")
     }
   }
 
@@ -74,26 +78,27 @@ class KeycloakClientSpec extends AnyWordSpecLike with Matchers {
   }
 
   "withTenant" should {
-    "start a JSON list" in {
-      KeycloakClient.withTenant(Nil, "RC100001") shouldBe List("""["RC100001"]""")
+    "start with one JSON string, not a JSON list" in {
+      KeycloakClient.withTenant(Nil, "RC2") shouldBe List("\"RC2\"")
     }
 
-    "add to a JSON list" in {
-      KeycloakClient.withTenant(List("""["RC100001"]"""), "RC100002") shouldBe List("""["RC100001","RC100002"]""")
+    "rewrite a JSON list as one JSON string per tenant" in {
+      KeycloakClient.withTenant(List("""["RC1"]"""), "RC2") shouldBe List("\"RC1\"", "\"RC2\"")
     }
 
-    "keep the other tenants when they are stored one value per tenant" in {
+    "add a second value to one value per tenant, not one list text" in {
+      KeycloakClient.withTenant(List("\"RC1\""), "RC2") shouldBe List("\"RC1\"", "\"RC2\"")
       KeycloakClient.withTenant(List("\"RC100100\"", "\"GC106668\""), "RC100200") shouldBe
         List("\"RC100100\"", "\"GC106668\"", "\"RC100200\"")
     }
 
-    "add a JSON string to plain values, which the token mapper cannot read" in {
-      KeycloakClient.withTenant(List("RC100100"), "RC100200") shouldBe List("RC100100", "\"RC100200\"")
+    "heal plain values, which the token mapper cannot read" in {
+      KeycloakClient.withTenant(List("RC100100"), "RC100200") shouldBe List("\"RC100100\"", "\"RC100200\"")
     }
 
-    "not add a tenant twice, ignoring case" in {
+    "not add a tenant twice, ignoring case, and write the values in the new form" in {
       KeycloakClient.withTenant(List("\"RC100100\""), "rc100100") shouldBe List("\"RC100100\"")
-      KeycloakClient.withTenant(List("""["RC100100"]"""), "RC100100") shouldBe List("""["RC100100"]""")
+      KeycloakClient.withTenant(List("""["RC100100"]"""), "RC100100") shouldBe List("\"RC100100\"")
     }
   }
 }

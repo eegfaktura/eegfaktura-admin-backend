@@ -8,6 +8,13 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Fixed
+- Keycloak `tenant` attribute: written as one JSON string per tenant (`"RC100100"`) instead of one value
+  holding a JSON list (`["RC100100"]`). The realm's token mapper (multivalued, aggregated, JSON) turned the old
+  form into a nested claim (`[["RC100100"]]`) that the backend, energystore, filestore and billing refuse
+  (keycloak 261005-ca1, admin-backend 261005-ca3). Adding a tenant reads both forms and rewrites the values in
+  the new one, so accounts written by an older version are healed on their next change.
+
 ## [1.1.1] – 2026-10-25
 
 ### Changed
