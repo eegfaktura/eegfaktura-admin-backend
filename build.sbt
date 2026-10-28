@@ -3,7 +3,7 @@ import com.typesafe.sbt.packager.docker.{Cmd, DockerChmodType, ExecCmd}
 
 ThisBuild / version := "0.2.10-SNAPSHOT"
 
-ThisBuild / scalaVersion := "2.13.9"
+ThisBuild / scalaVersion := "2.13.18"
 
 // Report deprecations in full (warnings only, the build does not fail on them).
 ThisBuild / scalacOptions += "-deprecation"

@@ -78,8 +78,8 @@ object Dependencies {
     "com.fasterxml.jackson.jakarta.rs" % "jackson-jakarta-rs-json-provider" % JacksonVersion,
     "com.fasterxml.jackson.module" % "jackson-module-jakarta-xmlbind-annotations" % JacksonVersion,
   )
-  // Same version as pekko-grpc 1.2.0 uses; the sbt plugin stays on 1.1.1 (1.2.0 needs sbt 1.9+,
-  // this build is on 1.8.3), so only the runtime libraries move, the generated code does not change.
+  // Same version as pekko-grpc 1.2.0 uses; the sbt plugin stays on 1.1.1 (a plugin update is its own
+  // change), so only the runtime libraries move, the generated code does not change.
   private val GrpcVersion = "1.75.0"
   lazy val grpcNettyShaded = "io.grpc" % "grpc-netty-shaded" % GrpcVersion
   lazy val grpcFamily = Seq(grpcNettyShaded) ++
