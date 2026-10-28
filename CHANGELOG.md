@@ -9,6 +9,12 @@ this changelog highlights the changes relevant for overview and operations.
 ## [Unreleased]
 
 ### Fixed
+- **Build: sbt 1.8.3 → 1.10.11 and Scala 2.13.9 → 2.13.18** (eegfaktura-dev tracking admin-backend 261028-mm1). The
+  image shipped `scala-library` 2.13.9, although the dependencies are built against 2.13.18 — sbt 1.8.3 forced the
+  library down to the compiler version, which can end in a `NoSuchMethodError` at runtime. Now compiler and library are
+  2.13.18. The newer resolver honours an exclusion of the RESTEasy BOM, so the unused `com.github.java-json-tools` jars
+  `btf`, `jackson-coreutils` and `msg-simple` leave the image. sbt 1.10.11 is the version eda-xp uses; it also runs on
+  Java 21. CI and image stay on Java 17.
 - **CI: the Snyk Code scan fails visibly when it cannot run.** An invalid `SNYK_TOKEN` ended the weekly and
   push scan green without any result (`continue-on-error`); now only „issues found“ keeps the run green (the
   issues go to Code Scanning), an authentication or tool error fails it. The Snyk CLI is pinned to 1.1308.1

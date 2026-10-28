@@ -3,7 +3,7 @@ import com.typesafe.sbt.packager.docker.{Cmd, DockerChmodType, ExecCmd}
 
 ThisBuild / version := "0.2.10-SNAPSHOT"
 
-ThisBuild / scalaVersion := "2.13.9"
+ThisBuild / scalaVersion := "2.13.18"
 
 // Report deprecations in full (warnings only, the build does not fail on them).
 ThisBuild / scalacOptions += "-deprecation"
@@ -41,7 +41,7 @@ lazy val root = (project in file("."))
     // Force exact versions (platform#183): they stop another dependency from pulling these families
     // up past the declared versions, but they also silently DOWNGRADE when a future bump brings a
     // newer one - raise JacksonVersion / GrpcVersion in Dependencies.scala together with such a bump.
-    // Removal plan for gRPC/protobuf: sbt 1.9+ with pekko-grpc plugin/runtime 1.2.0 brings grpc 1.75
+    // Removal plan for gRPC/protobuf: pekko-grpc plugin/runtime 1.2.0 (sbt 1.9+, given) brings grpc 1.75
     // and protobuf 3.25.8 natively, then grpcFamily and protobufJava can go.
     dependencyOverrides ++= jacksonFamily ++ grpcFamily,
 
