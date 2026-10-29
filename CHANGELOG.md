@@ -17,9 +17,11 @@ this changelog highlights the changes relevant for overview and operations.
 - **Registration: a Keycloak error in the check "does the user already exist" is no longer read as "does not exist"**
   (eegfaktura-dev tracking admin-backend 261005-ca4, part). `checkUserAlreadyExist` turned every Keycloak error into
   `false`, so the registration went on to create a new user. Now only an empty search result means "does not exist";
-  an error ends the registration step with 510 ("Creating Keycloak User failed!"), as other Keycloak errors there
-  already did. Before, that error path itself threw while logging and no answer was sent (500 after the ask timeout).
-  Not part of this fix: compensation of the steps already done (backend, eda-xp) when the Keycloak step fails.
+  an error ends the registration step with error code 510 in the body (HTTP 400, "Creating Keycloak User failed!"), as
+  other Keycloak errors there already did. The error path also no longer reads the failed check a second time (that
+  would have thrown again while logging and left the request without an answer). Not part of this fix: compensation
+  of the steps already done — the community then stays registered in the backend and at Ponton without a user; the
+  operator adds the user with addTenant/addAccount instead of registering again.
 - **Build: sbt 1.8.3 → 1.10.11 and Scala 2.13.9 → 2.13.18** (eegfaktura-dev tracking admin-backend 261028-mm1). The
   image shipped `scala-library` 2.13.9, although the dependencies are built against 2.13.18 — sbt 1.8.3 forced the
   library down to the compiler version, which can end in a `NoSuchMethodError` at runtime. Now compiler and library are
