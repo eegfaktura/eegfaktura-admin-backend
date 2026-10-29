@@ -9,6 +9,11 @@ this changelog highlights the changes relevant for overview and operations.
 ## [Unreleased]
 
 ### Fixed
+- **Admin master-data updates: a refused update is reported as a failure** (eegfaktura-dev tracking admin-backend
+  261005-ca13). `AdminService` mapped every answer of the backend's gRPC `updateValue` to success, also when the backend
+  refused the update with status 501/502 and wrote nothing; `/admin/master/update`, `/update/participant` and
+  `/update/eeg` then answered 200 (or 500 on the follow-up read). Now only status 200/201 counts as success; any other
+  status answers 400, as a failing gRPC call already did. The admin web shows the error (eegfaktura-admin 261005-ca1).
 - **Build: sbt 1.8.3 → 1.10.11 and Scala 2.13.9 → 2.13.18** (eegfaktura-dev tracking admin-backend 261028-mm1). The
   image shipped `scala-library` 2.13.9, although the dependencies are built against 2.13.18 — sbt 1.8.3 forced the
   library down to the compiler version, which can end in a `NoSuchMethodError` at runtime. Now compiler and library are

@@ -40,7 +40,8 @@ object AdminService {
                 meteringPoint = msg.meteringPoint,
                 value = msg.value,
               )) onComplete {
-                case Success(_) => replyTo ! MessageUpdateOk
+                case Success(reply) if reply.status == 200 || reply.status == 201 => replyTo ! MessageUpdateOk
+                case Success(reply) => replyTo ! MessageUpdateFail(reply.status, reply.message)
                 case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage)
               }
             case UpdateClassEnum.INACTIVESINCE =>
@@ -51,7 +52,8 @@ object AdminService {
                 meteringPoint = msg.meteringPoint,
                 value = msg.value,
               )) onComplete {
-                case Success(_) => replyTo ! MessageUpdateOk
+                case Success(reply) if reply.status == 200 || reply.status == 201 => replyTo ! MessageUpdateOk
+                case Success(reply) => replyTo ! MessageUpdateFail(reply.status, reply.message)
                 case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage)
               }
             case UpdateClassEnum.ACTIVESINCE =>
@@ -62,7 +64,8 @@ object AdminService {
                 meteringPoint = msg.meteringPoint,
                 value = msg.value,
               )) onComplete {
-                case Success(_) => replyTo ! MessageUpdateOk
+                case Success(reply) if reply.status == 200 || reply.status == 201 => replyTo ! MessageUpdateOk
+                case Success(reply) => replyTo ! MessageUpdateFail(reply.status, reply.message)
                 case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage)
               }
             case UpdateClassEnum.EEG =>
@@ -71,7 +74,8 @@ object AdminService {
                 tenant = msg.tenant,
                 value = msg.value,
               )) onComplete {
-                case Success(_) => replyTo ! MessageUpdateOk
+                case Success(reply) if reply.status == 200 || reply.status == 201 => replyTo ! MessageUpdateOk
+                case Success(reply) => replyTo ! MessageUpdateFail(reply.status, reply.message)
                 case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage)
               }
             case UpdateClassEnum.PARTICIPANT =>
@@ -81,7 +85,8 @@ object AdminService {
                 participantId = msg.participantId,
                 value = msg.value,
               )) onComplete {
-                case Success(_) => replyTo ! MessageUpdateOk
+                case Success(reply) if reply.status == 200 || reply.status == 201 => replyTo ! MessageUpdateOk
+                case Success(reply) => replyTo ! MessageUpdateFail(reply.status, reply.message)
                 case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage)
               }
           }
