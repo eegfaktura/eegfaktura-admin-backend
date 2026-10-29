@@ -267,7 +267,8 @@ object RegisterService {
                   }
                 } catch {
                   case e: Exception =>
-                    log.error(s"Creating/Updating ($userExists) Keycloak User failed ${eeg.rcNumber} - ${e.getMessage}")
+                    // not $userExists: when the check itself failed, reading it here throws again and no reply is sent
+                    log.error(s"Creating/Updating Keycloak User failed ${eeg.rcNumber} - ${e.getMessage}")
                     replyTo ! EegRegisterError(510, s"Creating Keycloak User failed! ${e.getMessage}")
                 }
               case Failure(e) =>

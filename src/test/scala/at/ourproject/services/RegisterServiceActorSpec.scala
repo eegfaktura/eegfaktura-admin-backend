@@ -166,6 +166,23 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       PontonStub.registered.size shouldBe 0
     }
 
+    "answer 510 and create no user when Keycloak cannot tell whether the user exists" in {
+      val created = new java.util.concurrent.atomic.AtomicBoolean(false)
+      val kc = new KeycloakClient(null, null) {
+        override def checkUserAlreadyExist(email: String): Boolean = throw new RuntimeException("keycloak down")
+        override def getGroups: List[org.keycloak.representations.idm.GroupRepresentation] = Nil
+        override def createUser(user: KeycloakClient.User, rcNumber: String,
+                                userGroups: List[org.keycloak.representations.idm.GroupRepresentation]): Unit = created.set(true)
+      }
+      val service = testKit.spawn(RegisterService(kc))
+      val probe = testKit.createTestProbe[Command]()
+
+      service ! RegisterEeg(eeg(online = false, PontonCommType.NONE), Nil, probe.ref)
+
+      probe.expectMessageType[EegRegisterError](10.seconds).code shouldBe 510
+      created.get shouldBe false
+    }
+
     "not register at Ponton for type NONE" in {
       PontonStub.registered.clear()
       val service = testKit.spawn(RegisterService(newUserKeycloak))
@@ -332,16 +349,18 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
 
   "RegisterService" should {
     "keep running after an exception escapes a message" in {
+      // getUserId is called in the message handler itself; the first call throws out of it
+      val calls = new java.util.concurrent.atomic.AtomicInteger(0)
       val throwingKeycloak = new KeycloakClient(null, null) {
-        override def getUserId(email: String): Try[String] = Success("user-id")
+        override def getUserId(email: String): Try[String] =
+          if (calls.getAndIncrement() == 0) throw new RuntimeException("unexpected") else Success("user-id")
         override def addTenantToUser(userId: String, tenant: String): Unit = ()
-        override def checkUserAlreadyExist(email: String): Boolean = throw new RuntimeException("unexpected")
       }
       val service = testKit.spawn(RegisterService(throwingKeycloak))
       val probe = testKit.createTestProbe[Command]()
 
       LoggingTestKit.error[RuntimeException].expect {
-        service ! RegisterEeg(eeg(online = false, PontonCommType.NONE), Nil, probe.ref)
+        service ! AddTenantToUser("TE100002", "user@test.local", probe.ref)
       }(testKit.system)
       probe.expectNoMessage(500.millis)
 

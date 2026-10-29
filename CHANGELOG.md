@@ -14,6 +14,12 @@ this changelog highlights the changes relevant for overview and operations.
   refused the update with status 501/502 and wrote nothing; `/admin/master/update`, `/update/participant` and
   `/update/eeg` then answered 200 (or 500 on the follow-up read). Now only status 200/201 counts as success; any other
   status answers 400, as a failing gRPC call already did. The admin web shows the error (eegfaktura-admin 261005-ca1).
+- **Registration: a Keycloak error in the check "does the user already exist" is no longer read as "does not exist"**
+  (eegfaktura-dev tracking admin-backend 261005-ca4, part). `checkUserAlreadyExist` turned every Keycloak error into
+  `false`, so the registration went on to create a new user. Now only an empty search result means "does not exist";
+  an error ends the registration step with 510 ("Creating Keycloak User failed!"), as other Keycloak errors there
+  already did. Before, that error path itself threw while logging and no answer was sent (500 after the ask timeout).
+  Not part of this fix: compensation of the steps already done (backend, eda-xp) when the Keycloak step fails.
 - **Build: sbt 1.8.3 → 1.10.11 and Scala 2.13.9 → 2.13.18** (eegfaktura-dev tracking admin-backend 261028-mm1). The
   image shipped `scala-library` 2.13.9, although the dependencies are built against 2.13.18 — sbt 1.8.3 forced the
   library down to the compiler version, which can end in a `NoSuchMethodError` at runtime. Now compiler and library are

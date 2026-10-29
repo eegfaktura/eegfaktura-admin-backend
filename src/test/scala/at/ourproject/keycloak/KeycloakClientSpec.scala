@@ -1,5 +1,6 @@
 package at.ourproject.keycloak
 
+import org.keycloak.representations.idm.UserRepresentation
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
@@ -7,6 +8,25 @@ class KeycloakClientSpec extends AnyWordSpecLike with Matchers {
 
   // buildUsername uses neither the admin client nor the config
   private val client = new KeycloakClient(null, null)
+
+  "checkUserAlreadyExist" should {
+    def client(search: String => java.util.List[UserRepresentation]): KeycloakClient = new KeycloakClient(null, null) {
+      override protected def searchUsersByEmail(email: String): java.util.List[UserRepresentation] = search(email)
+    }
+
+    "be true when a user has the e-mail" in {
+      client(_ => java.util.List.of(new UserRepresentation())).checkUserAlreadyExist("a@test.local") shouldBe true
+    }
+
+    "be false when no user has the e-mail" in {
+      client(_ => java.util.List.of()).checkUserAlreadyExist("a@test.local") shouldBe false
+    }
+
+    "pass a Keycloak error on instead of reading it as 'does not exist'" in {
+      val kc = client(_ => throw new jakarta.ws.rs.ProcessingException("keycloak down"))
+      a[jakarta.ws.rs.ProcessingException] should be thrownBy kc.checkUserAlreadyExist("a@test.local")
+    }
+  }
 
   "buildUsername" should {
     "take 6 characters of the last name and 2 of the first name" in {
