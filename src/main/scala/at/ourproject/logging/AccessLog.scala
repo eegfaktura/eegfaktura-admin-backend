@@ -63,7 +63,9 @@ object AccessLog {
    * Wraps all routes. Rejections and exceptions of the inner route are turned into responses here (as the server
    * would do), so the line carries the status the client gets. When the request runs past `request-timeout`, the
    * server answers 503 itself; the line is then written with 503 at that moment, and the route's later result is not
-   * written again.
+   * written again. Pekko calls the timeout handler before its stage decides which response goes out, so when the route
+   * completes within a few milliseconds of the timeout, the line can rarely show 503 while the client got the route's
+   * response, or the reverse; a directive cannot see the stage's decision.
    */
   val accessLog: Directive0 = Directive { inner =>
     val route = inner(())
