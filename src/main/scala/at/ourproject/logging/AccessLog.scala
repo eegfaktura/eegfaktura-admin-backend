@@ -14,7 +14,8 @@ import scala.util.{Failure, Success}
  * done. The route template, tenant and client are put into the request's `Context` by the routes: the token check sets
  * `client.id` (the token's azp, the Keycloak client - not a person), the route sets `http.route` (`AccessLog.path`)
  * and `tenant.id` (`AccessLog.tenant`, the tenant the route acts on). No raw path, no query, no address, no user agent,
- * no user (no user tracking, DSGVO). The health routes (/healthz, /readyz) are left out.
+ * no user (no user tracking, DSGVO). The health routes (/healthz, /readyz) are left out. The logger
+ * `at.ourproject.access` is fixed at info in logback.xml, so LOG_LEVEL / LOG_LEVEL_APP do not switch the line off.
  */
 object AccessLog {
 

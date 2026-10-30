@@ -21,6 +21,13 @@ class LogbackConfigSpec extends AnyWordSpec with Matchers {
   private def debug(ctx: LoggerContext, name: String) = ctx.getLogger(name).isDebugEnabled
   private def error(ctx: LoggerContext, name: String) = ctx.getLogger(name).isErrorEnabled
 
+  "the access logger" should {
+    "write its info lines at LOG_LEVEL=warn and LOG_LEVEL_APP=error" in withConfig("LOG_LEVEL" -> "warn", "LOG_LEVEL_APP" -> "error") { ctx =>
+      ctx.getLogger("at.ourproject").isWarnEnabled shouldBe false // the application loggers follow LOG_LEVEL_APP
+      ctx.getLogger("at.ourproject.access").isInfoEnabled shouldBe true
+    }
+  }
+
   "the Keycloak admin client's HTTP loggers" should {
     "stay at warn and the raw traffic off at LOG_LEVEL=debug" in withConfig("LOG_LEVEL" -> "debug", "LOG_LEVEL_APP" -> "debug") { ctx =>
       debug(ctx, "org.apache.pekko") shouldBe true // LOG_LEVEL reaches the root

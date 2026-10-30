@@ -30,6 +30,8 @@
     </root>
 
     <logger name="at.ourproject" level="${APP_LEVEL}"/>
+    <!-- the access line (AccessLog) is written whatever LOG_LEVEL / LOG_LEVEL_APP say -->
+    <logger name="at.ourproject.access" level="INFO"/>
     <logger name="org.apache.http" level="${HTTP_CLIENT_LEVEL}"/>
     <logger name="org.apache.http.wire" level="OFF"/>
     <logger name="org.apache.http.headers" level="OFF"/>

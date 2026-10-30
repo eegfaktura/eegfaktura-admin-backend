@@ -45,7 +45,8 @@ this changelog highlights the changes relevant for overview and operations.
     header `X-Request-Id`), `trace.id`/`span.id` (from a valid W3C `traceparent`), `tenant.id` (the tenant the route
     acts on, from the query or the body, upper case) and `client.id` (the token's `azp`, the Keycloak client - not a
     person). No user id, name, e-mail, user agent, IP or query values (no user tracking). `/healthz` and `/readyz` are
-    left out.
+    left out. The access logger `at.ourproject.access` is fixed at `info`: `LOG_LEVEL`/`LOG_LEVEL_APP` `warn` or
+    `error` do not switch the access line off.
 
 ### Fixed
 - **The token check no longer logs a token prefix or the user id** (eegfaktura-dev tracking admin-backend 261008-ca2).
