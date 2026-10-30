@@ -11,7 +11,8 @@ import com.typesafe.config.{Config, ConfigFactory}
 //   LOG_FORMAT     json | text (the image sets json; from source the default is text)
 //   SERVICE_VERSION  set by the image build, otherwise `dev`
 //
-// An unknown level or format stops the start (`validate`), logback alone would fall back to DEBUG.
+// An empty value is the same as an unset one (the default applies). An unknown level or format stops the start
+// (`validate`), logback alone would fall back to DEBUG.
 object LogSettings {
 
   val ServiceName = "eegfaktura-admin-backend"
@@ -25,18 +26,21 @@ object LogSettings {
 
   def parseFormat(value: String): Option[String] = Some(value.trim.toLowerCase).filter(Formats)
 
+  /** The value of a variable; unset and empty are the same (None). */
+  private def valueOf(env: Map[String, String], name: String): Option[String] = env.get(name).filter(_.trim.nonEmpty)
+
   /** The reason the start is refused, if it is. */
   def validate(env: Map[String, String]): Either[String, Unit] = {
-    val levels = Seq("LOG_LEVEL", "LOG_LEVEL_APP").flatMap(name => env.get(name).map(name -> _))
+    val levels = Seq("LOG_LEVEL", "LOG_LEVEL_APP").flatMap(name => valueOf(env, name).map(name -> _))
       .collectFirst { case (name, v) if parseLevel(v).isEmpty =>
         s"$name='$v' is not one of trace, debug, info, warn, error" }
-    val format = env.get("LOG_FORMAT").filter(parseFormat(_).isEmpty).map(v => s"LOG_FORMAT='$v' is not one of json, text")
+    val format = valueOf(env, "LOG_FORMAT").filter(parseFormat(_).isEmpty).map(v => s"LOG_FORMAT='$v' is not one of json, text")
     levels.orElse(format).toLeft(())
   }
 
   /** The level logback.xml uses for an environment variable, with another one (or info) as fallback. */
   def levelOf(env: Map[String, String], variable: String, fallback: Option[String]): String =
-    env.get(variable).orElse(fallback.flatMap(env.get)).flatMap(parseLevel).getOrElse("INFO")
+    valueOf(env, variable).orElse(fallback.flatMap(valueOf(env, _))).flatMap(parseLevel).getOrElse("INFO")
 
   /**
    * Pekko logs through SLF4J and leaves the level decision to logback; this goes over the application.conf (also

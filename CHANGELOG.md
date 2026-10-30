@@ -27,7 +27,7 @@ this changelog highlights the changes relevant for overview and operations.
     logback and the Jackson already in use).
   - Environment variables: `LOG_LEVEL` (default `info`; `trace`, `debug`, `info`, `warn`/`warning`, `error`) now sets
     the root level, including Pekko; before it only reached Pekko. `LOG_LEVEL_APP` (application loggers) now defaults
-    to `LOG_LEVEL`. **An unknown value (e.g. `OFF`) stops the start** (exit code 2). `LOG_FORMAT` (`json`, set in the
+    to `LOG_LEVEL`. **An unknown value (e.g. `OFF`) stops the start** (exit code 2); an empty value counts as unset (the default applies), as in the other services. `LOG_FORMAT` (`json`, set in the
     image; `text` when run from source). `SERVICE_VERSION` (set by the image build: the release tag, otherwise
     `sha-<short>`; `dev` from source).
   - Pekko always logs through SLF4J with the SLF4J logging filter, `pekko.loglevel` `DEBUG` (logback decides) and

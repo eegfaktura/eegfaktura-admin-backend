@@ -65,7 +65,7 @@ Environment variables (names only — never commit secret values):
 | `REGISTER_SERVICE_HOST_EEG` | gRPC host of `eegfaktura-backend` (EEG registration) |
 | `REGISTER_SERVICE_HOST_PONTON` | gRPC host of `eegfaktura-eda-xp` (Ponton/KEP registration) |
 | `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_DBNAME`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL connection |
-| `LOG_LEVEL` | root log level, also for Pekko: `trace`, `debug`, `info`, `warn` (or `warning`), `error` (default `info`); an unknown value stops the start |
+| `LOG_LEVEL` | root log level, also for Pekko: `trace`, `debug`, `info`, `warn` (or `warning`), `error` (default `info`); empty counts as unset, an unknown value stops the start |
 | `LOG_LEVEL_APP` | log level of the application loggers `at.ourproject.*` (default: `LOG_LEVEL`); `debug` only for troubleshooting |
 | `LOG_FORMAT` | `json` (one ECS JSON object per line, set in the image) or `text` (readable line, default when run from source) |
 | `SERVICE_VERSION` | `service.version` in the log lines; set by the image build (release tag or `sha-<short>`), otherwise `dev` |
