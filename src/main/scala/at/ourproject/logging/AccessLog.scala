@@ -58,26 +58,29 @@ object AccessLog {
    * Wraps all routes. Rejections and exceptions of the inner route are turned into responses here (as the server
    * would do), so the line carries the status the client gets.
    */
-  val accessLog: Directive0 = Directive { inner => rc =>
-    val request = rc.request
-    if (SkippedPaths(request.uri.path.toString)) inner(())(rc)
-    else {
-      val ctx = contextOf(request)
-      val start = System.nanoTime()
-      val idHeader = RawHeader(RequestIdHeader, ctx.requestId)
-      val sealedRoute = Route.seal(inner(()))
-      sealedRoute(rc.withRequest(request.addAttribute(ContextKey, ctx))).transform { result =>
-        val status = result match {
-          case Success(RouteResult.Complete(response)) => response.status.intValue
-          case Success(RouteResult.Rejected(_)) => 404 // not reached: the route is sealed
-          case Failure(_) => 500
-        }
-        write(request.method.value, status, System.nanoTime() - start, ctx)
-        result.map {
-          case RouteResult.Complete(response) => RouteResult.Complete(response.addHeader(idHeader))
-          case other => other
-        }
-      }(rc.executionContext)
+  val accessLog: Directive0 = Directive { inner =>
+    val route = inner(())
+    val sealedRoute = Route.seal(route) // once; the settings are taken from each request's context
+    rc => {
+      val request = rc.request
+      if (SkippedPaths(request.uri.path.toString)) route(rc)
+      else {
+        val ctx = contextOf(request)
+        val start = System.nanoTime()
+        val idHeader = RawHeader(RequestIdHeader, ctx.requestId)
+        sealedRoute(rc.withRequest(request.addAttribute(ContextKey, ctx))).transform { result =>
+          val status = result match {
+            case Success(RouteResult.Complete(response)) => response.status.intValue
+            case Success(RouteResult.Rejected(_)) => 404 // not reached: the route is sealed
+            case Failure(_) => 500
+          }
+          write(request.method.value, status, System.nanoTime() - start, ctx)
+          result.map {
+            case RouteResult.Complete(response) => RouteResult.Complete(response.addHeader(idHeader))
+            case other => other
+          }
+        }(rc.executionContext)
+      }
     }
   }
 
