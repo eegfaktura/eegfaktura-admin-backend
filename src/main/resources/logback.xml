@@ -1,18 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
+    <!-- The one logging setup of the service (at.ourproject.logging.LogSettings): one line per event on stdout,
+         LOG_FORMAT=json (set in the image) one ECS JSON object per line, text a readable line. Levels from
+         LOG_LEVEL (root) and LOG_LEVEL_APP (at.ourproject.*, default LOG_LEVEL); an unknown value stops the start. -->
+    <define name="ROOT_LEVEL" class="at.ourproject.logging.LogLevelDefiner">
+        <env>LOG_LEVEL</env>
+    </define>
+    <define name="APP_LEVEL" class="at.ourproject.logging.LogLevelDefiner">
+        <env>LOG_LEVEL_APP</env>
+        <fallbackEnv>LOG_LEVEL</fallbackEnv>
+    </define>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.out</target>
-        <encoder>
-            <pattern>%date{ISO8601} %-5level [%thread] %logger - %msg%n</pattern>
+        <encoder class="at.ourproject.logging.EcsEncoder">
+            <format>${LOG_FORMAT:-text}</format>
+            <serviceVersion>${SERVICE_VERSION:-dev}</serviceVersion>
         </encoder>
     </appender>
 
-    <root level="INFO">
+    <root level="${ROOT_LEVEL}">
         <appender-ref ref="CONSOLE"/>
     </root>
 
-    <logger name="at.ourproject" level="${LOG_LEVEL_APP:-INFO}"/>
+    <logger name="at.ourproject" level="${APP_LEVEL}"/>
     <logger name="org.apache.http" level="${log_slick_action:-inherited}"/>
     <logger name="org.apache.http.wire" level="${log_slick_action:-inherited}"/>
     <logger name="org.jboss.resteasy" level="${log_slick_action:-inherited}"/>

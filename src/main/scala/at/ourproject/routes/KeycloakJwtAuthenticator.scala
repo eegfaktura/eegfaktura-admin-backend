@@ -1,6 +1,9 @@
 package at.ourproject.routes
 
+import org.apache.pekko.http.scaladsl.server.Directive1
+import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
+import at.ourproject.logging.AccessLog
 import com.nimbusds.jose.{JOSEException, JWSAlgorithm}
 import com.nimbusds.jose.jwk.source.RemoteJWKSet
 import com.nimbusds.jose.proc.{BadJOSEException, JWSVerificationKeySelector, SecurityContext}
@@ -15,6 +18,14 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.jdk.CollectionConverters._
 
 case class AuthenticatedUser(subject: String, preferredUsername: Option[String], claims: Map[String, Any])
+
+object KeycloakJwtAuthenticator {
+  /** The token check of every protected route; puts the token's client (azp) into the access line. */
+  def authenticated(authenticator: Credentials => Future[Option[AuthenticatedUser]]): Directive1[AuthenticatedUser] =
+    authenticateOAuth2Async(realm = "keycloak", authenticator = authenticator).flatMap { user =>
+      AccessLog.client(user.claims.get("azp").map(String.valueOf)).tflatMap(_ => provide(user))
+    }
+}
 
 class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expectedAudience: String)(implicit ec: ExecutionContext) {
 

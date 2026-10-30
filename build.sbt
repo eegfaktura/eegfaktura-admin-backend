@@ -17,6 +17,12 @@ val ciRef = sys.env.getOrElse("GITHUB_REF", "")
 val isFeatureBranchBuild =
   ciRef.startsWith("refs/heads/preview/") || ciRef.startsWith("refs/heads/env/")
 
+// service.version in the logs: the release tag (v1.0.x) on a tag build, otherwise the image's sha-<short>, locally dev.
+// Not dockerVersion: the release images are tagged by the git tag (eegfaktura-dev tracking admin-backend 4).
+val serviceVersion =
+  if (ciRef.startsWith("refs/tags/")) ciRef.stripPrefix("refs/tags/")
+  else sys.env.get("GITHUB_SHA").filter(_.nonEmpty).map(sha => "sha-" + sha.take(7)).getOrElse("dev")
+
 lazy val root = (project in file("."))
   .enablePlugins(PekkoGrpcPlugin)
   .enablePlugins(JavaAppPackaging)
@@ -67,6 +73,8 @@ lazy val dockerSettings = Seq(
   dockerCommands ++= Seq(
     //    Cmd("ADD", "application-app.conf", "/conf/application.conf"),
     Cmd("LABEL", s"""version="${dockerVersion}""""),
+    // logging (at.ourproject.logging.LogSettings): JSON lines in the image, the image version as service.version
+    Cmd("ENV", "LOG_FORMAT=json", s"SERVICE_VERSION=${serviceVersion}"),
     ExecCmd("CMD", "/opt/docker/bin/eegfaktura-registration", "-Dconfig.file=/conf/application.conf")
   ),
   dockerChmodType := DockerChmodType.UserGroupWriteExecute,
