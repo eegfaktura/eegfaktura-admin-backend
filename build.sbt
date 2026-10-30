@@ -17,6 +17,14 @@ val ciRef = sys.env.getOrElse("GITHUB_REF", "")
 val isFeatureBranchBuild =
   ciRef.startsWith("refs/heads/preview/") || ciRef.startsWith("refs/heads/env/")
 
+// service.version in the logs: sha-<short> of the commit the image is built from (the git tag on a tag build), locally
+// dev. A release does not rebuild: promote-image.yml (eegfaktura-gitops) re-tags a verified dev-tier digest as vX.Y.Z,
+// so a released image keeps the sha-<short> of its build; the vX.Y.Z is not in the log. Not dockerVersion: that
+// label is not the release version (eegfaktura-dev tracking admin-backend 4).
+val serviceVersion =
+  if (ciRef.startsWith("refs/tags/")) ciRef.stripPrefix("refs/tags/")
+  else sys.env.get("GITHUB_SHA").filter(_.nonEmpty).map(sha => "sha-" + sha.take(7)).getOrElse("dev")
+
 lazy val root = (project in file("."))
   .enablePlugins(PekkoGrpcPlugin)
   .enablePlugins(JavaAppPackaging)
@@ -67,6 +75,8 @@ lazy val dockerSettings = Seq(
   dockerCommands ++= Seq(
     //    Cmd("ADD", "application-app.conf", "/conf/application.conf"),
     Cmd("LABEL", s"""version="${dockerVersion}""""),
+    // logging (at.ourproject.logging.LogSettings): JSON lines in the image, the image version as service.version
+    Cmd("ENV", "LOG_FORMAT=json", s"SERVICE_VERSION=${serviceVersion}"),
     ExecCmd("CMD", "/opt/docker/bin/eegfaktura-registration", "-Dconfig.file=/conf/application.conf")
   ),
   dockerChmodType := DockerChmodType.UserGroupWriteExecute,

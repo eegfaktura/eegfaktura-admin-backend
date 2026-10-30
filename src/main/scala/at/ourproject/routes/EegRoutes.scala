@@ -7,6 +7,7 @@ import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import org.apache.pekko.stream.{Materializer, SystemMaterializer}
 import at.ourproject.dao.Dao
 import at.ourproject.json.JsonFormater._
+import at.ourproject.logging.AccessLog
 import at.ourproject.services.RegisterService
 import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
@@ -21,21 +22,21 @@ class EegRoutes (daos: Dao, akkaAuthenticator: Credentials => Future[Option[Auth
 
   private val eegRoutes = {
       pathPrefix("vfeeg") {
-        authenticateOAuth2Async(realm = "keycloak", authenticator = akkaAuthenticator) { user: AuthenticatedUser =>
+        KeycloakJwtAuthenticator.authenticated(akkaAuthenticator) { user: AuthenticatedUser =>
           RoleDirectives.requireSuperuser(user) {
-          path("eeg") {
+          AccessLog.path("eeg") {
             get {
               complete(daos.eegRepository.getAll)
             }
           } ~
-          path("participants") {
+          AccessLog.path("participants") {
             get {
-              parameters("tenant") { tenant =>
+              AccessLog.tenantParameter { tenant =>
                 complete(daos.participantRepository.getFullParticipantByTenant(tenant))
               }
             }
           } ~
-          path("operators") {
+          AccessLog.path("operators") {
             get {
               complete(daos.operatorRepository.getAll)
             }

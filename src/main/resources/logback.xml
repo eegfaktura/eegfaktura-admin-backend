@@ -1,22 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
+    <!-- The one logging setup of the service (at.ourproject.logging.LogSettings): one line per event on stdout,
+         LOG_FORMAT=json (default) one ECS JSON object per line, text a readable line. Levels from
+         LOG_LEVEL (root) and LOG_LEVEL_APP (at.ourproject.*, default LOG_LEVEL); an unknown value stops the start. -->
+    <!-- The Keycloak admin client's HTTP stack logs client secrets and bearer tokens at debug: it does not follow
+         LOG_LEVEL (default warn, LOG_LEVEL_HTTP_CLIENT for troubleshooting), its raw traffic and headers stay off. -->
+    <define name="HTTP_CLIENT_LEVEL" class="at.ourproject.logging.LogLevelDefiner">
+        <env>LOG_LEVEL_HTTP_CLIENT</env>
+        <defaultLevel>WARN</defaultLevel>
+    </define>
+    <define name="ROOT_LEVEL" class="at.ourproject.logging.LogLevelDefiner">
+        <env>LOG_LEVEL</env>
+    </define>
+    <define name="APP_LEVEL" class="at.ourproject.logging.LogLevelDefiner">
+        <env>LOG_LEVEL_APP</env>
+        <fallbackEnv>LOG_LEVEL</fallbackEnv>
+    </define>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.out</target>
-        <encoder>
-            <pattern>%date{ISO8601} %-5level [%thread] %logger - %msg%n</pattern>
+        <encoder class="at.ourproject.logging.EcsEncoder">
+            <format>${LOG_FORMAT:-json}</format>
+            <serviceVersion>${SERVICE_VERSION:-dev}</serviceVersion>
         </encoder>
     </appender>
 
-    <root level="INFO">
+    <root level="${ROOT_LEVEL}">
         <appender-ref ref="CONSOLE"/>
     </root>
 
-    <logger name="at.ourproject" level="${LOG_LEVEL_APP:-INFO}"/>
-    <logger name="org.apache.http" level="${log_slick_action:-inherited}"/>
-    <logger name="org.apache.http.wire" level="${log_slick_action:-inherited}"/>
-    <logger name="org.jboss.resteasy" level="${log_slick_action:-inherited}"/>
+    <logger name="at.ourproject" level="${APP_LEVEL}"/>
+    <!-- the access line (AccessLog) is written whatever LOG_LEVEL / LOG_LEVEL_APP say -->
+    <logger name="at.ourproject.access" level="INFO"/>
+    <logger name="org.apache.http" level="${HTTP_CLIENT_LEVEL}"/>
+    <logger name="org.apache.http.wire" level="OFF"/>
+    <logger name="org.apache.http.headers" level="OFF"/>
+    <logger name="org.jboss.resteasy" level="${HTTP_CLIENT_LEVEL}"/>
     <logger name="com.zaxxer.hikari" level="${log_slick_action:-WARN}"/>
+    <!-- Slick's debug lines carry SQL, bound parameters and result rows: slick does not follow LOG_LEVEL (info, as
+         before the root followed LOG_LEVEL); only the dedicated log_* variables below raise a single logger. -->
+    <logger name="slick" level="INFO"/>
     <logger name="slick.basic.BasicBackend.action" level="${log_action:-inherited}"/>
     <logger name="slick.basic.BasicBackend.stream" level="${log_stream:-inherited}"/>
     <logger name="slick.compiler" level="OFF"/>

@@ -65,8 +65,18 @@ Environment variables (names only — never commit secret values):
 | `REGISTER_SERVICE_HOST_EEG` | gRPC host of `eegfaktura-backend` (EEG registration) |
 | `REGISTER_SERVICE_HOST_PONTON` | gRPC host of `eegfaktura-eda-xp` (Ponton/KEP registration) |
 | `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_DBNAME`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL connection |
-| `LOG_LEVEL` | Pekko log level (default `INFO`) |
-| `LOG_LEVEL_APP` | log level of the application loggers `at.ourproject.*` (default `INFO`); `DEBUG` only for troubleshooting |
+| `LOG_LEVEL` | root log level, also for Pekko: `trace`, `debug`, `info`, `warn` (or `warning`), `error` (default `info`); empty counts as unset, an unknown value stops the start |
+| `LOG_LEVEL_HTTP_CLIENT` | log level of the Keycloak admin client's HTTP stack (`org.apache.http`, `org.jboss.resteasy`; default `warn`, does not follow `LOG_LEVEL`); its raw traffic and headers are always off |
+| `LOG_LEVEL_APP` | log level of the application loggers `at.ourproject.*` (default: `LOG_LEVEL`); `debug` only for troubleshooting |
+| `LOG_FORMAT` | `json` (one ECS JSON object per line, default) or `text` (readable line, e.g. locally) |
+| `SERVICE_VERSION` | `service.version` in the log lines; set by the image build: `sha-<short>` of the built commit (the git tag on a tag build), otherwise `dev`; a promoted release (re-tag as `vX.Y.Z`, no rebuild) keeps the `sha-<short>` |
+
+Every log line goes through one setup (`at.ourproject.logging`, `logback.xml`): fields `@timestamp`, `log.level`,
+`log.logger`, `service.name`, `service.version`, `message`, `error.type`/`error.message`/`error.stack_trace`, and on the
+access line (`event.action=http.access`, one per request except `/healthz` and `/readyz`) `http.request.method`,
+`http.route`, `http.response.status_code`, `event.duration` (ns), `event.outcome`, `request.id` (`X-Request-Id`, echoed),
+`trace.id`/`span.id` (`traceparent`), `tenant.id`, `client.id` (the token's `azp`). No user, e-mail, user agent, address
+or query values.
 
 Exposed port: **8085** (HTTP/REST).
 

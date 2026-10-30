@@ -8,6 +8,7 @@ import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import org.apache.pekko.stream.{Materializer, SystemMaterializer}
 import org.apache.pekko.util.Timeout
+import at.ourproject.logging.AccessLog
 import at.ourproject.services.RegisterService
 import at.ourproject.services.RegisterService.{AccountGroups, AccountUser, Eeg, PontonRegInfo}
 import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
@@ -27,12 +28,12 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
   private val registrationRoutes = {
     concat(
       pathPrefix("eeg") {
-        authenticateOAuth2Async(realm = "keycloak", authenticator = akkaAuthenticator) { user: AuthenticatedUser =>
+        KeycloakJwtAuthenticator.authenticated(akkaAuthenticator) { user: AuthenticatedUser =>
           RoleDirectives.requireSuperuser(user) {
-          path("register") {
+          AccessLog.path("register") {
             pathEndOrSingleSlash {
               post {
-                withRequestTimeout(55.seconds) { entity(as[Eeg]) { eeg =>
+                withRequestTimeout(55.seconds) { AccessLog.withTenant(entity(as[Eeg]))(_.tenant) { eeg =>
                   val processFuture: Future[RegisterService.ResponseCommand] = node.ask(
                     ref => RegisterService.RegisterEeg(eeg, AccountGroups, ref)
                   )(keycloakTimeout, scheduler).mapTo[RegisterService.ResponseCommand]
@@ -45,10 +46,10 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
               }
             }
           } ~
-            path("ponton") {
+            AccessLog.path("ponton") {
               pathEndOrSingleSlash {
                 post {
-                  entity(as[PontonRegInfo]) { pontonRegInfo =>
+                  AccessLog.withTenant(entity(as[PontonRegInfo]))(_.tenant) { pontonRegInfo =>
                     val processFuture: Future[RegisterService.PontonRegisterResponse] = node.ask(
                       ref => RegisterService.PontonRegister(pontonRegInfo.tenant, pontonRegInfo.rcNumber, pontonRegInfo.pontonInfo, ref)
                     )(timeout, scheduler).mapTo[RegisterService.PontonRegisterResponse]
@@ -59,10 +60,10 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
                 }
               }
             } ~
-            path("account") {
+            AccessLog.path("account") {
               pathEndOrSingleSlash {
                 post { withRequestTimeout(55.seconds) {
-                  parameters("tenant") { tenant =>
+                  AccessLog.tenantParameter { tenant =>
                     entity(as[AccountUser]) { user =>
                       val processFuture: Future[RegisterService.AddAccountResponse] = node.ask(
                         ref => RegisterService.AddAccount(tenant, user, AccountGroups, ref)
@@ -75,9 +76,9 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
                 } }
               }
             } ~
-            path("accounts") {
+            AccessLog.path("accounts") {
               get { withRequestTimeout(55.seconds) {
-                parameters("tenant") { tenant =>
+                AccessLog.tenantParameter { tenant =>
                   val processFuture: Future[RegisterService.ListAccountsResponse] = node.ask(
                     ref => RegisterService.ListAccounts(tenant, ref)
                   )(keycloakTimeout, scheduler).mapTo[RegisterService.ListAccountsResponse]
@@ -88,9 +89,9 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
                 }
               } }
             } ~
-            path("addTenant") {
+            AccessLog.path("addTenant") {
               get {
-                parameters("tenant", "email") { (tenant, email) =>
+                (AccessLog.tenantParameter & parameter("email")) { (tenant, email) =>
                   val processFuture: Future[RegisterService.AddTenantToUserResponse] = node.ask(
                     ref => RegisterService.AddTenantToUser(tenant, email, ref)
                   )(timeout, scheduler).mapTo[RegisterService.AddTenantToUserResponse]

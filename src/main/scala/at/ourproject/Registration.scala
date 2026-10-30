@@ -6,13 +6,21 @@ import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import at.ourproject.dao.{Dao, DbInstance}
 import at.ourproject.keycloak.KeycloakClient
+import at.ourproject.logging.{AccessLog, LogSettings}
 import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, HealthRoutes, KeycloakJwtAuthenticator, RegistrationRoutes}
 import at.ourproject.services.{AdminService, RegisterService}
+import com.typesafe.config.ConfigFactory
 import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.ExecutionContext
 
 object Registration extends App {
+
+  // An unknown LOG_LEVEL, LOG_LEVEL_APP or LOG_FORMAT stops the start (logback would fall back to DEBUG).
+  LogSettings.validate(sys.env).left.foreach { reason =>
+    System.err.println(s"Refusing to start: $reason")
+    sys.exit(2)
+  }
 
   implicit val log: Logger = LoggerFactory.getLogger(getClass)
   private val keycloakConfig = KeycloakConfig.keycloakAdminConfig
@@ -54,12 +62,12 @@ object Registration extends App {
     val eegRouter = new EegRoutes(daos, akkaAuthenticator, node)
     val adminRouter = new AdminRoutes(daos, akkaAuthenticator, masterNode)
     val healthRouter = new HealthRoutes(HealthRoutes.postgresPing(system.settings.config.getConfig("slick.pgsql.vfeeg.properties")))
-    HttpServer.startHttpServer(healthRouter.route ~ regRouter.route ~ eegRouter.route ~ adminRouter.route)
+    HttpServer.startHttpServer(AccessLog.accessLog(healthRouter.route ~ regRouter.route ~ eegRouter.route ~ adminRouter.route))
 
     Registration.system.log.info("Registration Server started ...")
 
     Behaviors.empty
   }
 
-  implicit val system: ActorSystem[Nothing] = ActorSystem[Nothing](rootBehavior, "AdministrationServer")
+  implicit val system: ActorSystem[Nothing] = ActorSystem[Nothing](rootBehavior, "AdministrationServer", LogSettings.pekkoLogging.withFallback(ConfigFactory.load()))
 }

@@ -9,6 +9,7 @@ import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import org.apache.pekko.stream.{Materializer, SystemMaterializer}
 import org.apache.pekko.util.Timeout
 import at.ourproject.dao.Dao
+import at.ourproject.logging.AccessLog
 import at.ourproject.routes.UpdateClassEnum.UpdateClassEnum
 import at.ourproject.services.AdminService
 import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
@@ -44,12 +45,12 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
 
   private val adminRoutes = concat(
     pathPrefix("admin") {
-      authenticateOAuth2Async(realm = "keycloak", authenticator = akkaAuthenticator) { user: AuthenticatedUser =>
+      KeycloakJwtAuthenticator.authenticated(akkaAuthenticator) { user: AuthenticatedUser =>
         RoleDirectives.requireSuperuser(user) {
-        path("master" / "update") {
+        AccessLog.path("master", "update") {
           pathEndOrSingleSlash {
             post {
-              entity(as[UpdateMessage]) { updateMsg =>
+              AccessLog.withTenant(entity(as[UpdateMessage]))(_.tenant) { updateMsg =>
                 val processFuture: Future[AdminService.Command] = admin.ask(
                   ref => AdminService.MessageUpdate(updateMsg, ref)
                 )(timeout, scheduler).mapTo[AdminService.Command]
@@ -64,10 +65,10 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
             }
           }
         } ~
-        path("master" / "update" / "participant") {
+        AccessLog.path("master", "update", "participant") {
           pathEndOrSingleSlash {
             post {
-              entity(as[UpdateMessage]) { updateMsg =>
+              AccessLog.withTenant(entity(as[UpdateMessage]))(_.tenant) { updateMsg =>
                 val processFuture: Future[AdminService.Command] = admin.ask(
                   ref => AdminService.MessageUpdate(updateMsg, ref)
                 )(timeout, scheduler).mapTo[AdminService.Command]
@@ -82,10 +83,10 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
             }
           }
         } ~
-        path("master" / "update" / "eeg") {
+        AccessLog.path("master", "update", "eeg") {
           pathEndOrSingleSlash {
             post {
-              entity(as[UpdateMessage]) { updateMsg =>
+              AccessLog.withTenant(entity(as[UpdateMessage]))(_.tenant) { updateMsg =>
                 val processFuture: Future[AdminService.Command] = admin.ask(
                   ref => AdminService.MessageUpdate(updateMsg, ref)
                 )(timeout, scheduler).mapTo[AdminService.Command]
