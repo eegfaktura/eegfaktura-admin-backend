@@ -1,7 +1,7 @@
 package at.ourproject.logging
 
-import at.ourproject.routes.{AuthenticatedUser, EegRoutes, HealthRoutes, RegistrationRoutes}
-import at.ourproject.services.RegisterService
+import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, HealthRoutes, RegistrationRoutes}
+import at.ourproject.services.{AdminService, RegisterService}
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.{Logger => LogbackLogger}
 import ch.qos.logback.core.read.ListAppender
@@ -12,7 +12,7 @@ import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken, RawHeader}
-import org.apache.pekko.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse}
+import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpHeader, HttpMethods, HttpRequest, HttpResponse}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import org.apache.pekko.http.scaladsl.settings.ServerSettings
@@ -65,11 +65,18 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
     case _ => Behaviors.same
   })
 
+  // the backend refuses every master-data update (no database needed: the route answers 400)
+  private val admin = testKit.spawn(Behaviors.receiveMessage[AdminService.Command] {
+    case AdminService.MessageUpdate(_, replyTo) => replyTo ! AdminService.MessageUpdateFail(501, "refused"); Behaviors.same
+    case _ => Behaviors.same
+  })
+
   private lazy val port = {
     val routes = AccessLog.accessLog(
       new HealthRoutes(() => Future.successful(1)).route ~
         new RegistrationRoutes(authenticator, node).route ~
-        new EegRoutes(null, authenticator, node).route)
+        new EegRoutes(null, authenticator, node).route ~
+        new AdminRoutes(null, authenticator, admin).route)
     Await.result(Http().newServerAt("127.0.0.1", 0).bind(routes), 10.seconds).localAddress.getPort
   }
 
@@ -168,6 +175,23 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       response.headers.find(_.is("x-request-id")).map(_.value) shouldBe Some(j.get("request.id").asText)
       j.has("trace.id") shouldBe false
       lines.head._1 should not include "4711"
+    }
+
+    "carry the multi-segment template of an admin route and the tenant of the body, not the body's ids" in {
+      val body = """{"updateClass":"PARTICIPANT","tenant":"rc100200","participantId":"p-4711","meteringPoint":"AT0030000000000000000000000471100","value":{"firstname":"Max"}}"""
+      Seq("/admin/master/update", "/admin/master/update/participant", "/admin/master/update/eeg").foreach { uri =>
+        val (response, lines) = callAt(port, HttpRequest(HttpMethods.POST, uri, List(Bearer("superuser")),
+          HttpEntity(ContentTypes.`application/json`, body)))
+        response.status.intValue shouldBe 400
+        lines should have size 1
+        val (raw, j) = lines.head
+        j.get("http.route").asText shouldBe uri
+        j.get("tenant.id").asText shouldBe "RC100200"
+        j.get("client.id").asText shouldBe Client
+        j.get("message").asText shouldBe s"POST $uri 400"
+        Seq("p-4711", "4711", "AT003", "Max").foreach(s => raw should not include s)
+        assertNoPersonalData(raw)
+      }
     }
 
     "carry the 503 the server answers on a request timeout, once, also when the route completes later" in {
