@@ -12,7 +12,9 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
+import java.io.{DataInputStream, DataOutputStream}
 import java.net.{InetAddress, ServerSocket, Socket}
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ListBuffer
@@ -52,6 +54,23 @@ class HealthRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfter
     t.setDaemon(true)
     t.start()
     server.getLocalPort
+  }
+
+  // Answers like a Postgres server without a free connection slot: declines SSL/GSS encryption, reads the startup
+  // message and sends a FATAL ErrorResponse with SQLSTATE 53300.
+  private def tooManyConnections(s: Socket): Unit = {
+    val in = new DataInputStream(s.getInputStream)
+    val out = new DataOutputStream(s.getOutputStream)
+    var length = in.readInt()
+    var code = in.readInt()
+    while (code == 80877103 || code == 80877104) { // SSLRequest, GSSENCRequest
+      out.writeByte('N'); out.flush()
+      length = in.readInt(); code = in.readInt()
+    }
+    in.readFully(new Array[Byte](length - 8))
+    val fields = Seq("SFATAL", "VFATAL", "C53300", "Msorry, too many clients already")
+      .map(f => f.getBytes(StandardCharsets.UTF_8) :+ 0.toByte).reduce(_ ++ _) :+ 0.toByte
+    out.writeByte('E'); out.writeInt(4 + fields.length); out.write(fields); out.flush()
   }
 
   private def pingProperties(port: Int) = ConfigFactory.parseString(
@@ -137,6 +156,38 @@ class HealthRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfter
       val (response, body) = call(new HealthRoutes(HealthRoutes.postgresPing(pingProperties(port))).route, "/readyz")
       response.status shouldBe StatusCodes.ServiceUnavailable
       body shouldBe "unavailable"
+    }
+
+    "report ready when Postgres refuses the ping with 53300 too_many_connections" in {
+      val port = tcpServer(tooManyConnections)
+      val ping = HealthRoutes.postgresPing(pingProperties(port))
+      val refused = Try(Await.result(ping(), 10.seconds)).failed.get
+      refused shouldBe a[java.sql.SQLException]
+      refused.asInstanceOf[java.sql.SQLException].getSQLState shouldBe "53300"
+
+      val (response, body) = call(new HealthRoutes(ping).route, "/readyz")
+      response.status shouldBe StatusCodes.OK
+      body shouldBe "ok"
+    }
+
+    "fail at once while the previous ping still runs, instead of queueing behind it" in {
+      val port = tcpServer(_ => ()) // accepts and stays silent
+      val ping = HealthRoutes.postgresPing(pingProperties(port))
+      val first = ping()
+      val (second, millis) = elapsedMillis(Await.result(ping(), 10.seconds))
+      second.failed.get shouldBe an[IllegalStateException]
+      millis should be < 200L
+      Try(Await.result(first, 15.seconds)).isFailure shouldBe true
+      ping().isCompleted shouldBe false // the guard is released after the first ping ends
+    }
+
+    "pass further driver properties on to the connection" in {
+      // the fake server declines SSL: with sslmode=require the driver gives up before it sees the 53300 answer
+      val port = tcpServer(tooManyConnections)
+      val ping = HealthRoutes.postgresPing(pingProperties(port).withFallback(ConfigFactory.parseString("sslmode = require")))
+      val failure = Try(Await.result(ping(), 10.seconds)).failed.get
+      failure shouldBe a[java.sql.SQLException]
+      failure.asInstanceOf[java.sql.SQLException].getSQLState should not be "53300"
     }
 
     "give up by its own driver timeouts when the server never answers" in {
