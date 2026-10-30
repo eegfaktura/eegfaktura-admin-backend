@@ -16,8 +16,36 @@ this changelog highlights the changes relevant for overview and operations.
   timeouts; one check runs at a time and callers within a second share its result. If Postgres refuses the ping with
   SQLSTATE 53300 (too many connections), `/readyz` still answers 200, because the application's pool keeps its
   connections. A failure or refusal is logged (warn) only when the state changes. All other paths still need a token.
+- **Structured logging (JSON) and an access line per request** (eegfaktura-dev logging concept W-261008-ca2; tracking
+  admin-backend 261008-ca2). **This changes what operators and Dynatrace receive from the admin-backend:**
+  - One logging setup (`at.ourproject.logging`, `logback.xml`) for the application's and Pekko's loggers. In the image
+    every line is now **one JSON object on stdout** with ECS field names: `@timestamp` (UTC, ms), `log.level`
+    (`trace`/`debug`/`info`/`warn`/`error`), `log.logger`, `service.name` (`eegfaktura-admin-backend`),
+    `service.version`, `message`, exceptions as `error.type`/`error.message`/`error.stack_trace` in the same line. Only
+    these fields and the access fields below are written; Pekko's MDC entries (`pekkoSource`, `sourceThread`, ...) are
+    dropped. The former text pattern (`date level [thread] logger - msg`) is gone; no new library (own encoder on
+    logback and the Jackson already in use).
+  - Environment variables: `LOG_LEVEL` (default `info`; `trace`, `debug`, `info`, `warn`/`warning`, `error`) now sets
+    the root level, including Pekko; before it only reached Pekko. `LOG_LEVEL_APP` (application loggers) now defaults
+    to `LOG_LEVEL`. **An unknown value (e.g. `OFF`) stops the start** (exit code 2). `LOG_FORMAT` (`json`, set in the
+    image; `text` when run from source). `SERVICE_VERSION` (set by the image build: the release tag, otherwise
+    `sha-<short>`; `dev` from source).
+  - Pekko always logs through SLF4J with the SLF4J logging filter, `pekko.loglevel` `DEBUG` (logback decides) and
+    `stdout-loglevel` `OFF`; this overrides the mounted `application.conf`, so its `loglevel`/`stdout-loglevel`/`loggers`
+    no longer have an effect.
+  - **Access line:** one line per request after the token check, `event.action=http.access`, with
+    `http.request.method`, `http.route` (the route template, e.g. `/eeg/accounts`; left out when no route matched,
+    also for requests refused before the route, message then shows `-`), `http.response.status_code`,
+    `event.duration` (nanoseconds), `event.outcome` (`success`, `refused` for 401/403, `failure`), `request.id` (the
+    caller's `X-Request-Id` when it is a plain token of up to 128 characters, otherwise generated; returned as response
+    header `X-Request-Id`), `trace.id`/`span.id` (from a valid W3C `traceparent`), `tenant.id` (the tenant the route
+    acts on, from the query or the body, upper case) and `client.id` (the token's `azp`, the Keycloak client - not a
+    person). No user id, name, e-mail, user agent, IP or query values (no user tracking). `/healthz` and `/readyz` are
+    left out.
 
 ### Fixed
+- **The token check no longer logs a token prefix or the user id** (eegfaktura-dev tracking admin-backend 261008-ca2).
+  At debug level it logged the first 8 characters of every token and the token's `sub` on every request.
 - **Admin master-data updates: a refused update is reported as a failure** (eegfaktura-dev tracking admin-backend
   261005-ca13). `AdminService` mapped every answer of the backend's gRPC `updateValue` to success, also when the backend
   refused the update with status 501/502 and wrote nothing; `/admin/master/update`, `/update/participant` and
