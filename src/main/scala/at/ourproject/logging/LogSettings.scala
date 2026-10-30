@@ -8,7 +8,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 //
 //   LOG_LEVEL      trace | debug | info | warn | error (default info; `warning` is read as warn) - root level
 //   LOG_LEVEL_APP  the same values, level of the application loggers at.ourproject.* (default: LOG_LEVEL)
-//   LOG_FORMAT     json | text (the image sets json; from source the default is text)
+//   LOG_FORMAT     json | text (default json, also from source; text for a readable line locally)
 //   SERVICE_VERSION  set by the image build, otherwise `dev`
 //
 // An empty value is the same as an unset one (the default applies). An unknown level or format stops the start

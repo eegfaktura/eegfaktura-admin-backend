@@ -89,9 +89,14 @@ class EcsEncoderSpec extends AnyWordSpec with Matchers {
     }
   }
 
-  "an unknown format" should {
-    "fall back to json (the start is refused before)" in {
-      new ObjectMapper().readTree(line("xml", event(Level.INFO, "x"))).get("message").asText shouldBe "x"
+  "the default format" should {
+    "be json when the format is not set, empty or unknown (an unknown one is refused at the start before)" in {
+      val unset = new EcsEncoder
+      new ObjectMapper().readTree(new String(unset.encode(event(Level.INFO, "x")), StandardCharsets.UTF_8))
+        .get("message").asText shouldBe "x"
+      Seq("", "xml", null).foreach { f =>
+        new ObjectMapper().readTree(line(f, event(Level.INFO, "x"))).get("message").asText shouldBe "x"
+      }
     }
   }
 }

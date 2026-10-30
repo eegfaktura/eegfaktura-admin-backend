@@ -67,7 +67,7 @@ Environment variables (names only — never commit secret values):
 | `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_DBNAME`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL connection |
 | `LOG_LEVEL` | root log level, also for Pekko: `trace`, `debug`, `info`, `warn` (or `warning`), `error` (default `info`); empty counts as unset, an unknown value stops the start |
 | `LOG_LEVEL_APP` | log level of the application loggers `at.ourproject.*` (default: `LOG_LEVEL`); `debug` only for troubleshooting |
-| `LOG_FORMAT` | `json` (one ECS JSON object per line, set in the image) or `text` (readable line, default when run from source) |
+| `LOG_FORMAT` | `json` (one ECS JSON object per line, default) or `text` (readable line, e.g. locally) |
 | `SERVICE_VERSION` | `service.version` in the log lines; set by the image build (release tag or `sha-<short>`), otherwise `dev` |
 
 Every log line goes through one setup (`at.ourproject.logging`, `logback.xml`): fields `@timestamp`, `log.level`,

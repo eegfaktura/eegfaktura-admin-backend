@@ -19,11 +19,12 @@ import scala.jdk.CollectionConverters._
 class EcsEncoder extends EncoderBase[ILoggingEvent] {
   import EcsEncoder._
 
-  private var format = "text"
+  private var format = "json"
   private var serviceVersion = "dev"
   private val json = new JsonFactory()
 
-  def setFormat(f: String): Unit = format = LogSettings.parseFormat(f).getOrElse("json")
+  /** `text` or `json`; unset, empty and unknown are json (an unknown value is refused at the start before). */
+  def setFormat(f: String): Unit = format = Option(f).flatMap(LogSettings.parseFormat).getOrElse("json")
   def setServiceVersion(v: String): Unit = serviceVersion = Option(v).map(_.trim).filter(_.nonEmpty).getOrElse("dev")
 
   override def headerBytes(): Array[Byte] = null

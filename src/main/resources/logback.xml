@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <!-- The one logging setup of the service (at.ourproject.logging.LogSettings): one line per event on stdout,
-         LOG_FORMAT=json (set in the image) one ECS JSON object per line, text a readable line. Levels from
+         LOG_FORMAT=json (default) one ECS JSON object per line, text a readable line. Levels from
          LOG_LEVEL (root) and LOG_LEVEL_APP (at.ourproject.*, default LOG_LEVEL); an unknown value stops the start. -->
     <define name="ROOT_LEVEL" class="at.ourproject.logging.LogLevelDefiner">
         <env>LOG_LEVEL</env>
@@ -14,7 +14,7 @@
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.out</target>
         <encoder class="at.ourproject.logging.EcsEncoder">
-            <format>${LOG_FORMAT:-text}</format>
+            <format>${LOG_FORMAT:-json}</format>
             <serviceVersion>${SERVICE_VERSION:-dev}</serviceVersion>
         </encoder>
     </appender>
