@@ -15,6 +15,7 @@ import org.apache.pekko.http.scaladsl.model.headers.{Authorization, OAuth2Bearer
 import org.apache.pekko.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
+import org.apache.pekko.http.scaladsl.settings.ServerSettings
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -22,7 +23,7 @@ import org.slf4j.LoggerFactory
 
 import java.nio.charset.StandardCharsets
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.jdk.CollectionConverters._
 
 // The access line through the real routers (bound on 127.0.0.1:0, called over HTTP), as the service wires them.
@@ -75,16 +76,21 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
   private val encoder = { val e = new EcsEncoder; e.setFormat("json"); e }
 
   /** Calls the service; the access lines written for this call, encoded as the image writes them. */
-  private def call(uri: String, headers: HttpHeader*): (HttpResponse, List[(String, JsonNode)]) = {
+  private def call(uri: String, headers: HttpHeader*): (HttpResponse, List[(String, JsonNode)]) =
+    callAt(port, HttpRequest(uri = uri, headers = headers.toList))
+
+  private def callAt(port: Int, request: HttpRequest): (HttpResponse, List[(String, JsonNode)]) = {
     appender.list.clear()
     val response = Await.result(
-      Http().singleRequest(HttpRequest(uri = s"http://127.0.0.1:$port$uri", headers = headers.toList))
+      Http().singleRequest(request.withUri(s"http://127.0.0.1:$port${request.uri}"))
         .flatMap(r => r.entity.discardBytes().future.map(_ => r)), 10.seconds)
-    val lines = appender.list.asScala.toList.map { e =>
-      val raw = new String(encoder.encode(e), StandardCharsets.UTF_8)
-      raw -> new ObjectMapper().readTree(raw)
-    }
-    (response, lines)
+    (response, lines())
+  }
+
+  /** The access lines written since the last call, encoded as the image writes them. */
+  private def lines(): List[(String, JsonNode)] = appender.list.asScala.toList.map { e =>
+    val raw = new String(encoder.encode(e), StandardCharsets.UTF_8)
+    raw -> new ObjectMapper().readTree(raw)
   }
 
   private val Allowed = Set("@timestamp", "log.level", "log.logger", "service.name", "service.version", "message",
@@ -162,6 +168,25 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       response.headers.find(_.is("x-request-id")).map(_.value) shouldBe Some(j.get("request.id").asText)
       j.has("trace.id") shouldBe false
       lines.head._1 should not include "4711"
+    }
+
+    "carry the 503 the server answers on a request timeout, once, also when the route completes later" in {
+      val late = Promise[String]()
+      val settings = ServerSettings(system)
+      val slowPort = Await.result(Http().newServerAt("127.0.0.1", 0)
+        .adaptSettings(_ => settings.withTimeouts(settings.timeouts.withRequestTimeout(300.millis)))
+        .bind(AccessLog.accessLog(AccessLog.path("slow") { complete(late.future) })), 10.seconds).localAddress.getPort
+      val (response, timeoutLines) = callAt(slowPort, HttpRequest(uri = "/slow"))
+      response.status.intValue shouldBe 503
+      timeoutLines should have size 1
+      val j = timeoutLines.head._2
+      j.get("http.response.status_code").asInt shouldBe 503
+      j.get("event.outcome").asText shouldBe "failure"
+      j.get("http.route").asText shouldBe "/slow"
+      response.headers.find(_.is("x-request-id")).map(_.value) shouldBe Some(j.get("request.id").asText)
+      late.success("late")
+      Thread.sleep(300)
+      lines() should have size 1
     }
 
     "not be written for the health routes" in {

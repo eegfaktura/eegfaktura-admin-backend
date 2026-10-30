@@ -46,7 +46,9 @@ this changelog highlights the changes relevant for overview and operations.
     acts on, from the query or the body, upper case) and `client.id` (the token's `azp`, the Keycloak client - not a
     person). No user id, name, e-mail, user agent, IP or query values (no user tracking). `/healthz` and `/readyz` are
     left out. The access logger `at.ourproject.access` is fixed at `info`: `LOG_LEVEL`/`LOG_LEVEL_APP` `warn` or
-    `error` do not switch the access line off.
+    `error` do not switch the access line off. A request that runs past Pekko's `request-timeout` is logged with
+    the 503 the server answers at that moment (not the route's later status); a route that completes after the timeout
+    writes no second line.
 
 ### Fixed
 - **The token check no longer logs a token prefix or the user id** (eegfaktura-dev tracking admin-backend 261008-ca2).

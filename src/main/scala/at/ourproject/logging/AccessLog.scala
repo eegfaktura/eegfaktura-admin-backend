@@ -1,12 +1,13 @@
 package at.ourproject.logging
 
-import org.apache.pekko.http.scaladsl.model.headers.RawHeader
-import org.apache.pekko.http.scaladsl.model.{AttributeKey, HttpRequest}
+import org.apache.pekko.http.scaladsl.model.headers.{RawHeader, `Timeout-Access`}
+import org.apache.pekko.http.scaladsl.model.{AttributeKey, HttpRequest, HttpResponse, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.{Directive, Directive0, Directive1, PathMatcher0, Route, RouteResult}
 import org.slf4j.LoggerFactory
 
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.util.{Failure, Success}
 
 /**
@@ -54,9 +55,15 @@ object AccessLog {
     new Context(id, trace.map(_._1), trace.map(_._2))
   }
 
+  /** Pekko's own answer to a request that runs past `request-timeout` (its default response, unchanged). */
+  private val TimeoutResponse = HttpResponse(StatusCodes.ServiceUnavailable,
+    entity = "The server was not able to produce a timely response to your request.\r\nPlease try again in a short while!")
+
   /**
    * Wraps all routes. Rejections and exceptions of the inner route are turned into responses here (as the server
-   * would do), so the line carries the status the client gets.
+   * would do), so the line carries the status the client gets. When the request runs past `request-timeout`, the
+   * server answers 503 itself; the line is then written with 503 at that moment, and the route's later result is not
+   * written again.
    */
   val accessLog: Directive0 = Directive { inner =>
     val route = inner(())
@@ -68,13 +75,20 @@ object AccessLog {
         val ctx = contextOf(request)
         val start = System.nanoTime()
         val idHeader = RawHeader(RequestIdHeader, ctx.requestId)
+        val written = new AtomicBoolean(false)
+        def writeOnce(status: Int): Unit =
+          if (written.compareAndSet(false, true)) write(request.method.value, status, System.nanoTime() - start, ctx)
+        request.header[`Timeout-Access`].foreach(_.timeoutAccess.updateHandler { (_: HttpRequest) =>
+          writeOnce(TimeoutResponse.status.intValue)
+          TimeoutResponse.addHeader(idHeader)
+        })
         sealedRoute(rc.withRequest(request.addAttribute(ContextKey, ctx))).transform { result =>
           val status = result match {
             case Success(RouteResult.Complete(response)) => response.status.intValue
             case Success(RouteResult.Rejected(_)) => 404 // not reached: the route is sealed
             case Failure(_) => 500
           }
-          write(request.method.value, status, System.nanoTime() - start, ctx)
+          writeOnce(status)
           result.map {
             case RouteResult.Complete(response) => RouteResult.Complete(response.addHeader(idHeader))
             case other => other
