@@ -32,8 +32,9 @@ this changelog highlights the changes relevant for overview and operations.
     (`org.apache.http`, `org.jboss.resteasy`); it does **not** follow `LOG_LEVEL`, because its debug lines carry
     credentials. Its raw traffic and headers (`org.apache.http.wire`, `org.apache.http.headers`) are always off. The
     old `log_slick_action` variable no longer reaches these loggers (it still sets `com.zaxxer.hikari`). `LOG_FORMAT` (`json`, the default also
-    when run from source; `text` for a readable line). `SERVICE_VERSION` (set by the image build: the release tag, otherwise
-    `sha-<short>`; `dev` from source).
+    when run from source; `text` for a readable line). `SERVICE_VERSION` (set by the image build: `sha-<short>` of the built
+    commit, the git tag on a tag build; `dev` from source). A release re-tags a dev-tier image as `vX.Y.Z` without a
+    rebuild (gitops `promote-image.yml`), so released images log the `sha-<short>` of their build, not `vX.Y.Z`.
   - Pekko always logs through SLF4J with the SLF4J logging filter, `pekko.loglevel` `DEBUG` (logback decides) and
     `stdout-loglevel` `OFF`; this overrides the mounted `application.conf`, so its `loglevel`/`stdout-loglevel`/`loggers`
     no longer have an effect.

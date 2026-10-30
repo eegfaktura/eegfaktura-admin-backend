@@ -17,8 +17,10 @@ val ciRef = sys.env.getOrElse("GITHUB_REF", "")
 val isFeatureBranchBuild =
   ciRef.startsWith("refs/heads/preview/") || ciRef.startsWith("refs/heads/env/")
 
-// service.version in the logs: the release tag (v1.0.x) on a tag build, otherwise the image's sha-<short>, locally dev.
-// Not dockerVersion: the release images are tagged by the git tag (eegfaktura-dev tracking admin-backend 4).
+// service.version in the logs: sha-<short> of the commit the image is built from (the git tag on a tag build), locally
+// dev. A release does not rebuild: promote-image.yml (eegfaktura-gitops) re-tags a verified dev-tier digest as vX.Y.Z,
+// so a released image keeps the sha-<short> of its build; the vX.Y.Z is not in the log. Not dockerVersion: that
+// label is not the release version (eegfaktura-dev tracking admin-backend 4).
 val serviceVersion =
   if (ciRef.startsWith("refs/tags/")) ciRef.stripPrefix("refs/tags/")
   else sys.env.get("GITHUB_SHA").filter(_.nonEmpty).map(sha => "sha-" + sha.take(7)).getOrElse("dev")

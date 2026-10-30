@@ -69,7 +69,7 @@ Environment variables (names only — never commit secret values):
 | `LOG_LEVEL_HTTP_CLIENT` | log level of the Keycloak admin client's HTTP stack (`org.apache.http`, `org.jboss.resteasy`; default `warn`, does not follow `LOG_LEVEL`); its raw traffic and headers are always off |
 | `LOG_LEVEL_APP` | log level of the application loggers `at.ourproject.*` (default: `LOG_LEVEL`); `debug` only for troubleshooting |
 | `LOG_FORMAT` | `json` (one ECS JSON object per line, default) or `text` (readable line, e.g. locally) |
-| `SERVICE_VERSION` | `service.version` in the log lines; set by the image build (release tag or `sha-<short>`), otherwise `dev` |
+| `SERVICE_VERSION` | `service.version` in the log lines; set by the image build: `sha-<short>` of the built commit (the git tag on a tag build), otherwise `dev`; a promoted release (re-tag as `vX.Y.Z`, no rebuild) keeps the `sha-<short>` |
 
 Every log line goes through one setup (`at.ourproject.logging`, `logback.xml`): fields `@timestamp`, `log.level`,
 `log.logger`, `service.name`, `service.version`, `message`, `error.type`/`error.message`/`error.stack_trace`, and on the
