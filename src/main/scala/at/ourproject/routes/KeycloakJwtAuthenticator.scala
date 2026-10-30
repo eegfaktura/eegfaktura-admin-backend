@@ -43,9 +43,6 @@ class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expected
 
   // Validate token and return JWTClaimsSet on success
   private def validateAndGetClaims(token: String): Future[JWTClaimsSet] = Future {
-    // Token received by Akka should be the bare token. Log masked token prefix (never log full token in prod)
-    log.debug("Validating token (first 8 chars): {}", token.take(8) + "...")
-
     val signedJWT = SignedJWT.parse(token)
 
     // Log header fields (kid, alg)
@@ -59,8 +56,7 @@ class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expected
       val iss = Option(c.getIssuer).getOrElse("")
       val aud = Option(c.getAudience).map(_.asScala.mkString(",")).getOrElse("")
       val exp = Option(c.getExpirationTime).map(_.toString).getOrElse("<none>")
-      val sub = Option(c.getSubject).getOrElse("<none>")
-      log.debug("Unverified claims: iss={}, aud={}, sub={}, exp={}", iss, aud, sub, exp)
+      log.debug("Unverified claims: iss={}, aud={}, exp={}", iss, aud, exp)
     }
 
     try {
@@ -76,7 +72,7 @@ class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expected
       val aud = Option(claims.getAudience).getOrElse(java.util.Collections.emptyList()).asScala
       if (!aud.contains(expectedAudience)) throw new RuntimeException(s"invalid audience: $aud (expected $expectedAudience)")
 
-      log.debug("Token validated successfully (kid={}, sub={})", kid, Option(claims.getSubject).getOrElse("<none>"))
+      log.debug("Token validated successfully (kid={})", kid)
       claims
     } catch {
       case e: BadJOSEException =>
