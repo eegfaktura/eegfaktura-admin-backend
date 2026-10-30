@@ -30,7 +30,7 @@ class HealthRoutes(dbCheck: () => Future[Any], timeout: FiniteDuration = 2.secon
   private val reuseNanos = 1.second.toNanos
   private var current: Future[Boolean] = _
   @volatile private var completedAt = 0L
-  @volatile private var lastState = "ok" // ok, saturated or down
+  @volatile private var lastState = "none" // none (no result yet), ok, saturated or down
 
   private def ready: Future[Boolean] = synchronized {
     if (current == null || (current.isCompleted && System.nanoTime - completedAt >= reuseNanos)) {
@@ -51,9 +51,12 @@ class HealthRoutes(dbCheck: () => Future[Any], timeout: FiniteDuration = 2.secon
     }
     result.future.transform {
       case Success(_) =>
-        if (lastState != "ok") log.info("readyz: database reachable again")
+        if (lastState == "saturated" || lastState == "down") log.info("readyz: database reachable again")
         lastState = "ok"
         Success(true)
+      case Failure(_: HealthRoutes.PingStillRunning) =>
+        // a slow ping must not make a healthy pod flap: answer from the last completed result
+        Success(lastState == "ok" || lastState == "saturated")
       case Failure(ex: SQLException) if ex.getSQLState == "53300" =>
         if (lastState != "saturated")
           log.warn("readyz: database has no free connection for the ping (53300 too_many_connections), still reporting ready")
@@ -82,6 +85,11 @@ class HealthRoutes(dbCheck: () => Future[Any], timeout: FiniteDuration = 2.secon
 }
 
 object HealthRoutes {
+  private val log = LoggerFactory.getLogger(getClass)
+
+  // the previous ping has not finished yet; the routes answer from the last completed result
+  class PingStillRunning extends RuntimeException("previous ping still running")
+
   // one daemon thread for the blocking ping; a ping never waits in its queue (see `running` below)
   private lazy val pingContext = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor(new ThreadFactory {
     override def newThread(r: Runnable): Thread = {
@@ -95,7 +103,7 @@ object HealthRoutes {
   // service NotReady, and the public path must not be able to exhaust it). It uses the connection properties of
   // `slick.pgsql.vfeeg` (all of them, so driver keys such as ssl or options apply too) and the driver's own connect,
   // login and query timeouts, with a socket timeout as backstop. While a ping still runs (it can outlast the 2 s
-  // answer), the next one fails at once instead of waiting behind it.
+  // answer), the next one fails at once with PingStillRunning instead of waiting behind it.
   def postgresPing(properties: Config): () => Future[Unit] = {
     val ds = new PGSimpleDataSource()
     properties.entrySet.asScala.foreach { e =>
@@ -106,7 +114,10 @@ object HealthRoutes {
         case "databaseName" => ds.setDatabaseName(value)
         case "user" => ds.setUser(value)
         case "password" => ds.setPassword(value)
-        case name => ds.setProperty(name, value)
+        // the application's Slick pool stays the authority on its properties; the ping skips a key it cannot use
+        case name =>
+          try ds.setProperty(name, value)
+          catch { case ex: SQLException => log.warn(s"readyz: ping ignores the connection property $name: ${ex.getMessage}") }
       }
     }
     ds.setConnectTimeout(2)
@@ -115,7 +126,7 @@ object HealthRoutes {
     ds.setApplicationName("readyz")
     val running = new AtomicBoolean(false)
     () =>
-      if (!running.compareAndSet(false, true)) Future.failed(new IllegalStateException("previous ping still running"))
+      if (!running.compareAndSet(false, true)) Future.failed(new PingStillRunning)
       else Future {
         try {
           Using.resource(ds.getConnection()) { conn =>

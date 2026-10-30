@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 // The routes are bound on 127.0.0.1:0 and called over HTTP, the same way a probe calls them.
@@ -145,6 +146,41 @@ class HealthRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfter
     }
   }
 
+  "GET /readyz while the previous ping still runs" should {
+    // the check answers from the queue, one entry per call
+    def routesWith(results: Future[Any]*): Int = {
+      val queue = new java.util.concurrent.ConcurrentLinkedQueue[Future[Any]](results.asJava)
+      bind(new HealthRoutes(() => queue.poll()).route)
+    }
+    def status(port: Int) = Await.result(request(port, "/readyz"), 10.seconds)._1.status
+    val busy = Future.failed(new HealthRoutes.PingStillRunning)
+
+    "answer 200 when the last ping succeeded" in {
+      val port = routesWith(Future.successful(1), busy)
+      status(port) shouldBe StatusCodes.OK
+      Thread.sleep(1100)
+      status(port) shouldBe StatusCodes.OK
+    }
+
+    "answer 200 when the last ping was refused with 53300" in {
+      val port = routesWith(Future.failed(new java.sql.SQLException("too many", "53300")), busy)
+      status(port) shouldBe StatusCodes.OK
+      Thread.sleep(1100)
+      status(port) shouldBe StatusCodes.OK
+    }
+
+    "answer 503 when the last ping failed" in {
+      val port = routesWith(Future.failed(new RuntimeException("down")), busy)
+      status(port) shouldBe StatusCodes.ServiceUnavailable
+      Thread.sleep(1100)
+      status(port) shouldBe StatusCodes.ServiceUnavailable
+    }
+
+    "answer 503 when there is no result yet" in {
+      status(routesWith(busy)) shouldBe StatusCodes.ServiceUnavailable
+    }
+  }
+
   "the Postgres ping" should {
     "fail fast by itself when the server closes the connection" in {
       val port = tcpServer(_.close())
@@ -175,10 +211,17 @@ class HealthRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfter
       val ping = HealthRoutes.postgresPing(pingProperties(port))
       val first = ping()
       val (second, millis) = elapsedMillis(Await.result(ping(), 10.seconds))
-      second.failed.get shouldBe an[IllegalStateException]
+      second.failed.get shouldBe a[HealthRoutes.PingStillRunning]
       millis should be < 200L
       Try(Await.result(first, 15.seconds)).isFailure shouldBe true
       ping().isCompleted shouldBe false // the guard is released after the first ping ends
+    }
+
+    "skip a connection property the driver does not know instead of failing" in {
+      val port = tcpServer(tooManyConnections)
+      val ping = HealthRoutes.postgresPing(pingProperties(port).withFallback(ConfigFactory.parseString("noSuchDriverKey = 1")))
+      val failure = Try(Await.result(ping(), 10.seconds)).failed.get
+      failure.asInstanceOf[java.sql.SQLException].getSQLState shouldBe "53300" // the ping still reached the server
     }
 
     "pass further driver properties on to the connection" in {
