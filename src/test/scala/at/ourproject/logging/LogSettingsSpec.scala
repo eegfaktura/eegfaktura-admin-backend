@@ -30,6 +30,7 @@ class LogSettingsSpec extends AnyWordSpec with Matchers {
       LogSettings.validate(Map("LOG_LEVEL" -> "verbose")).left.toOption.get should include("LOG_LEVEL='verbose'")
       LogSettings.validate(Map("LOG_LEVEL_APP" -> "OFF")).left.toOption.get should include("LOG_LEVEL_APP='OFF'")
       LogSettings.validate(Map("LOG_FORMAT" -> "xml")).left.toOption.get should include("LOG_FORMAT='xml'")
+      LogSettings.validate(Map("LOG_LEVEL_HTTP_CLIENT" -> "all")).left.toOption.get should include("LOG_LEVEL_HTTP_CLIENT='all'")
     }
   }
 
@@ -39,6 +40,7 @@ class LogSettingsSpec extends AnyWordSpec with Matchers {
       LogSettings.levelOf(env, "LOG_LEVEL_APP", Some("LOG_LEVEL")) shouldBe "DEBUG"
       LogSettings.levelOf(env - "LOG_LEVEL_APP", "LOG_LEVEL_APP", Some("LOG_LEVEL")) shouldBe "WARN"
       LogSettings.levelOf(Map.empty, "LOG_LEVEL", None) shouldBe "INFO"
+      LogSettings.levelOf(Map.empty, "LOG_LEVEL_HTTP_CLIENT", None, "WARN") shouldBe "WARN"
     }
 
     "read an empty value as unset" in {

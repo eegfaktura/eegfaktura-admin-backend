@@ -27,7 +27,11 @@ this changelog highlights the changes relevant for overview and operations.
     logback and the Jackson already in use).
   - Environment variables: `LOG_LEVEL` (default `info`; `trace`, `debug`, `info`, `warn`/`warning`, `error`) now sets
     the root level, including Pekko; before it only reached Pekko. `LOG_LEVEL_APP` (application loggers) now defaults
-    to `LOG_LEVEL`. **An unknown value (e.g. `OFF`) stops the start** (exit code 2); an empty value counts as unset (the default applies), as in the other services. `LOG_FORMAT` (`json`, the default also
+    to `LOG_LEVEL`. **An unknown value (e.g. `OFF`) stops the start** (exit code 2); an empty value counts as unset (the default applies), as in the other services.
+    `LOG_LEVEL_HTTP_CLIENT` (same values, default `warn`) sets the level of the Keycloak admin client's HTTP stack
+    (`org.apache.http`, `org.jboss.resteasy`); it does **not** follow `LOG_LEVEL`, because its debug lines carry
+    credentials. Its raw traffic and headers (`org.apache.http.wire`, `org.apache.http.headers`) are always off. The
+    old `log_slick_action` variable no longer reaches these loggers (it still sets `com.zaxxer.hikari`). `LOG_FORMAT` (`json`, the default also
     when run from source; `text` for a readable line). `SERVICE_VERSION` (set by the image build: the release tag, otherwise
     `sha-<short>`; `dev` from source).
   - Pekko always logs through SLF4J with the SLF4J logging filter, `pekko.loglevel` `DEBUG` (logback decides) and
