@@ -11,8 +11,10 @@ this changelog highlights the changes relevant for overview and operations.
 ### Added
 - **Health endpoints `GET /healthz` and `GET /readyz` for Kubernetes probes** on the HTTP port 8085, without a bearer
   token. `/healthz` (liveness) answers 200 `ok` and checks nothing, so a database outage does not restart the pod.
-  `/readyz` (readiness) answers 200 `ok` when the database answers `SELECT 1` through the service's Slick pool within
-  2 s, otherwise 503 `unavailable`; the reason is only logged (warn). All other paths still need a token.
+  `/readyz` (readiness) answers 200 `ok` when the database answers `SELECT 1` within 2 s, otherwise 503 `unavailable`.
+  The check uses its own short-lived connection (not the application's pool) with driver connect, login and query
+  timeouts; one check runs at a time and callers within a second share its result. A failure is logged (warn) only
+  when the state changes. All other paths still need a token.
 
 ### Fixed
 - **Admin master-data updates: a refused update is reported as a failure** (eegfaktura-dev tracking admin-backend

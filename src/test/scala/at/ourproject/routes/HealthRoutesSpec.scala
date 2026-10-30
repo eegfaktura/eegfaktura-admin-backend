@@ -1,38 +1,66 @@
 package at.ourproject.routes
 
 import at.ourproject.services.RegisterService
+import com.typesafe.config.ConfigFactory
 import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.http.scaladsl.Http
-import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpRequest, HttpResponse, StatusCodes}
+import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpMethod, HttpMethods, HttpRequest, HttpResponse, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import slick.jdbc.JdbcBackend.Database
 
+import java.net.{InetAddress, ServerSocket, Socket}
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+import scala.util.Try
 
 // The routes are bound on 127.0.0.1:0 and called over HTTP, the same way a probe calls them.
 class HealthRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll {
 
-  private val testKit = ActorTestKit()
+  private val testKit = ActorTestKit("HealthRoutesSpec", ConfigFactory.load())
   private implicit val system: ActorSystem[Nothing] = testKit.system
   private implicit val ec: ExecutionContext = system.executionContext
+  private val sockets = ListBuffer[java.io.Closeable]()
 
-  override def afterAll(): Unit = testKit.shutdownTestKit()
+  override def afterAll(): Unit = {
+    sockets.foreach(s => Try(s.close()))
+    testKit.shutdownTestKit()
+  }
 
-  private def call(route: Route, uri: String): (HttpResponse, String) = {
-    val binding = Await.result(Http().newServerAt("127.0.0.1", 0).bind(route), 10.seconds)
-    try {
-      val port = binding.localAddress.getPort
-      val response = Await.result(Http().singleRequest(HttpRequest(uri = s"http://127.0.0.1:$port$uri")), 10.seconds)
-      val body = Await.result(response.entity.toStrict(5.seconds), 10.seconds).data.utf8String
-      (response, body)
-    } finally Await.result(binding.unbind(), 10.seconds)
+  private def bind(route: Route): Int =
+    Await.result(Http().newServerAt("127.0.0.1", 0).bind(route), 10.seconds).localAddress.getPort
+
+  private def request(port: Int, uri: String, method: HttpMethod = HttpMethods.GET): Future[(HttpResponse, String)] =
+    Http().singleRequest(HttpRequest(method = method, uri = s"http://127.0.0.1:$port$uri")).flatMap { response =>
+      response.entity.toStrict(5.seconds).map(e => (response, e.data.utf8String))
+    }
+
+  private def call(route: Route, uri: String, method: HttpMethod = HttpMethods.GET): (HttpResponse, String) =
+    Await.result(request(bind(route), uri, method), 10.seconds)
+
+  // A local TCP server: `answer` decides what happens with an accepted connection.
+  private def tcpServer(answer: Socket => Unit): Int = {
+    val server = new ServerSocket(0, 50, InetAddress.getLoopbackAddress)
+    sockets += server
+    val t = new Thread(() => while (!server.isClosed) Try(server.accept()).foreach { s => sockets += s; answer(s) })
+    t.setDaemon(true)
+    t.start()
+    server.getLocalPort
+  }
+
+  private def pingProperties(port: Int) = ConfigFactory.parseString(
+    s"""serverName = "127.0.0.1", portNumber = "$port", databaseName = "none", user = "none", password = "none"""")
+
+  private def elapsedMillis[T](f: => T): (Try[T], Long) = {
+    val start = System.nanoTime
+    val result = Try(f)
+    (result, (System.nanoTime - start) / 1000000)
   }
 
   "GET /healthz" should {
@@ -74,25 +102,72 @@ class HealthRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfter
       body shouldBe "unavailable"
     }
 
-    "answer 503 when the Slick database cannot reach Postgres" in {
-      // nothing listens on port 1; the query of the real check fails to connect
-      val db = Database.forURL("jdbc:postgresql://127.0.0.1:1/none?connectTimeout=1", driver = "org.postgresql.Driver")
-      try {
-        val (response, body) = call(new HealthRoutes(HealthRoutes.selectOne(db)).route, "/readyz")
-        response.status shouldBe StatusCodes.ServiceUnavailable
-        body shouldBe "unavailable"
-      } finally db.close()
+    "run one check for concurrent callers and share its result" in {
+      val checks = new AtomicInteger()
+      val routes = new HealthRoutes(() => {
+        checks.incrementAndGet()
+        org.apache.pekko.pattern.after(300.millis)(Future.successful(1))
+      })
+      val port = bind(routes.route)
+      val answers = Await.result(Future.sequence((1 to 5).map(_ => request(port, "/readyz"))), 10.seconds)
+      answers.map(_._1.status).distinct shouldBe Seq(StatusCodes.OK)
+      checks.get shouldBe 1
+    }
+
+    "reuse a result younger than a second and check again after that" in {
+      val checks = new AtomicInteger()
+      val port = bind(new HealthRoutes(() => { checks.incrementAndGet(); Future.successful(1) }).route)
+      Await.result(request(port, "/readyz"), 10.seconds)
+      Await.result(request(port, "/readyz"), 10.seconds)
+      checks.get shouldBe 1
+      Thread.sleep(1100)
+      Await.result(request(port, "/readyz"), 10.seconds)
+      checks.get shouldBe 2
+    }
+  }
+
+  "the Postgres ping" should {
+    "fail fast by itself when the server closes the connection" in {
+      val port = tcpServer(_.close())
+      val (result, millis) = elapsedMillis(Await.result(HealthRoutes.postgresPing(pingProperties(port))(), 10.seconds))
+      result.isFailure shouldBe true
+      result.failed.get should not be a[TimeoutException]
+      millis should be < 1000L
+
+      val (response, body) = call(new HealthRoutes(HealthRoutes.postgresPing(pingProperties(port))).route, "/readyz")
+      response.status shouldBe StatusCodes.ServiceUnavailable
+      body shouldBe "unavailable"
+    }
+
+    "give up by its own driver timeouts when the server never answers" in {
+      val port = tcpServer(_ => ()) // accepts and stays silent
+      val (result, millis) = elapsedMillis(Await.result(HealthRoutes.postgresPing(pingProperties(port))(), 15.seconds))
+      result.isFailure shouldBe true
+      result.failed.get should not be a[TimeoutException] // not the Await above
+      millis should be < 5000L
     }
   }
 
   "the protected routes next to the health routes" should {
-    "still answer 401 without a token" in {
-      // an authenticator that accepts nobody; the dao is never reached
-      val authenticator = (_: Any) => Future.successful(Option.empty[AuthenticatedUser])
-      val eegRoutes = new EegRoutes(null, authenticator, testKit.createTestProbe[RegisterService.Command]().ref)
-      val health = new HealthRoutes(() => Future.successful(1))
-      val (response, _) = call(health.route ~ eegRoutes.route, "/vfeeg/eeg")
-      response.status shouldBe StatusCodes.Unauthorized
+    // an authenticator that accepts nobody; the dao and the actor are never reached
+    val authenticator = (_: Any) => Future.successful(Option.empty[AuthenticatedUser])
+    lazy val combined = {
+      val node = testKit.createTestProbe[RegisterService.Command]().ref
+      new HealthRoutes(() => Future.successful(1)).route ~
+        new RegistrationRoutes(authenticator, node).route ~
+        new EegRoutes(null, authenticator, node).route
+    }
+
+    "still answer 401 to a GET without a token" in {
+      call(combined, "/vfeeg/eeg")._1.status shouldBe StatusCodes.Unauthorized
+    }
+
+    "still answer 401 to a POST without a token" in {
+      call(combined, "/eeg/register", HttpMethods.POST)._1.status shouldBe StatusCodes.Unauthorized
+    }
+
+    "still answer 404 to a POST on an unknown path" in {
+      call(combined, "/unknown", HttpMethods.POST)._1.status shouldBe StatusCodes.NotFound
     }
   }
 }
