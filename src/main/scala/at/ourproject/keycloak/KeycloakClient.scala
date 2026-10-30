@@ -20,14 +20,11 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
 
   val log: Logger = LoggerFactory.getLogger(getClass)
 
-  def checkUserAlreadyExist(email: String): Boolean = {
-    try {
-      getUserRepresentation(email)
-      true
-    } catch {
-      case _: Exception => false
-    }
-  }
+  /** Users with exactly this e-mail; a Keycloak error is thrown, not read as "no user". */
+  protected def searchUsersByEmail(email: String): java.util.List[UserRepresentation] =
+    usersResource(realmResource(keycloakAdminClient)).searchByEmail(email, true)
+
+  def checkUserAlreadyExist(email: String): Boolean = !searchUsersByEmail(email).isEmpty
 
   def getUserRepresentation(email: String): UserRepresentation = {
     val realm = realmResource(keycloakAdminClient)
