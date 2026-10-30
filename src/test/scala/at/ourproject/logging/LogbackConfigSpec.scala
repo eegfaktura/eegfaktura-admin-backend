@@ -28,6 +28,21 @@ class LogbackConfigSpec extends AnyWordSpec with Matchers {
     }
   }
 
+  "the Slick loggers" should {
+    val sql = Seq("slick.jdbc.JdbcBackend.statement", "slick.jdbc.JdbcBackend.parameter", "slick.jdbc.JdbcBackend.statementAndParameter",
+      "slick.jdbc.StatementInvoker.result", "slick.basic.BasicBackend.action", "slick.basic.BasicBackend.stream", "slick.jdbc.JdbcBackend.benchmark")
+
+    "stay at info at LOG_LEVEL=debug (no SQL, parameters or result rows)" in withConfig("LOG_LEVEL" -> "debug", "LOG_LEVEL_APP" -> "debug") { ctx =>
+      sql.foreach(name => withClue(name)(debug(ctx, name) shouldBe false))
+      ctx.getLogger("slick.jdbc.JdbcBackend.parameter").isInfoEnabled shouldBe true
+    }
+
+    "be raised only by their own variable" in withConfig("LOG_LEVEL" -> "debug", "log_jdbc_parameter" -> "DEBUG") { ctx =>
+      debug(ctx, "slick.jdbc.JdbcBackend.parameter") shouldBe true
+      debug(ctx, "slick.jdbc.StatementInvoker.result") shouldBe false
+    }
+  }
+
   "the Keycloak admin client's HTTP loggers" should {
     "stay at warn and the raw traffic off at LOG_LEVEL=debug" in withConfig("LOG_LEVEL" -> "debug", "LOG_LEVEL_APP" -> "debug") { ctx =>
       debug(ctx, "org.apache.pekko") shouldBe true // LOG_LEVEL reaches the root

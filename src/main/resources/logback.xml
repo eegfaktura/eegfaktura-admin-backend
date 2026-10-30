@@ -37,6 +37,9 @@
     <logger name="org.apache.http.headers" level="OFF"/>
     <logger name="org.jboss.resteasy" level="${HTTP_CLIENT_LEVEL}"/>
     <logger name="com.zaxxer.hikari" level="${log_slick_action:-WARN}"/>
+    <!-- Slick's debug lines carry SQL, bound parameters and result rows: slick does not follow LOG_LEVEL (info, as
+         before the root followed LOG_LEVEL); only the dedicated log_* variables below raise a single logger. -->
+    <logger name="slick" level="INFO"/>
     <logger name="slick.basic.BasicBackend.action" level="${log_action:-inherited}"/>
     <logger name="slick.basic.BasicBackend.stream" level="${log_stream:-inherited}"/>
     <logger name="slick.compiler" level="OFF"/>

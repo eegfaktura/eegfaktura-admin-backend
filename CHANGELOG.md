@@ -31,7 +31,8 @@ this changelog highlights the changes relevant for overview and operations.
     `LOG_LEVEL_HTTP_CLIENT` (same values, default `warn`) sets the level of the Keycloak admin client's HTTP stack
     (`org.apache.http`, `org.jboss.resteasy`); it does **not** follow `LOG_LEVEL`, because its debug lines carry
     credentials. Its raw traffic and headers (`org.apache.http.wire`, `org.apache.http.headers`) are always off. The
-    old `log_slick_action` variable no longer reaches these loggers (it still sets `com.zaxxer.hikari`). `LOG_FORMAT` (`json`, the default also
+    old `log_slick_action` variable no longer reaches these loggers (it still sets `com.zaxxer.hikari`). The Slick loggers (`slick.*`: SQL, bound parameters, result rows) stay at
+    `info` and do not follow `LOG_LEVEL` either; only their own `log_*` variables (e.g. `log_jdbc_parameter`) raise one. `LOG_FORMAT` (`json`, the default also
     when run from source; `text` for a readable line). `SERVICE_VERSION` (set by the image build: `sha-<short>` of the built
     commit, the git tag on a tag build; `dev` from source). A release re-tags a dev-tier image as `vX.Y.Z` without a
     rebuild (gitops `promote-image.yml`), so released images log the `sha-<short>` of their build, not `vX.Y.Z`.
