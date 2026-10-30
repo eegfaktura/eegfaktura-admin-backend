@@ -6,7 +6,7 @@ import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import at.ourproject.dao.{Dao, DbInstance}
 import at.ourproject.keycloak.KeycloakClient
-import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, KeycloakJwtAuthenticator, RegistrationRoutes}
+import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, HealthRoutes, KeycloakJwtAuthenticator, RegistrationRoutes}
 import at.ourproject.services.{AdminService, RegisterService}
 import org.slf4j.{Logger, LoggerFactory}
 
@@ -53,7 +53,8 @@ object Registration extends App {
     val regRouter = new RegistrationRoutes(akkaAuthenticator, node)
     val eegRouter = new EegRoutes(daos, akkaAuthenticator, node)
     val adminRouter = new AdminRoutes(daos, akkaAuthenticator, masterNode)
-    HttpServer.startHttpServer(regRouter.route ~ eegRouter.route ~ adminRouter.route)
+    val healthRouter = new HealthRoutes(HealthRoutes.selectOne(daos.db))
+    HttpServer.startHttpServer(healthRouter.route ~ regRouter.route ~ eegRouter.route ~ adminRouter.route)
 
     Registration.system.log.info("Registration Server started ...")
 
