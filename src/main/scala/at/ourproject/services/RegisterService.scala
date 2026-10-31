@@ -122,6 +122,10 @@ object RegisterService {
   val MailNotSupported: String = "MAIL-Transport wird nicht mehr unterstützt"
   val NoPontonSelected: String = "Keine Ponton-Anbindung gewählt"
 
+  /** RegisteredEegReply.status of the backend: the tenant exists, nothing was written (261015-ca1). */
+  val EegExistsStatus: Int = 409
+  def eegAlreadyRegistered(tenant: String): String = s"EEG ${tenant.toUpperCase()} ist bereits registriert. Es wurde nichts geändert."
+
   /** Groups of every account of a community: all accounts have the same rights (platform#166). */
   val AccountGroups: List[String] = List("EEG_ADMIN", "EEG_OWNER")
 
@@ -235,17 +239,20 @@ object RegisterService {
             context.log.info(s"Register new EEG ${request.rcNumber} (tenant ${request.tenant})")
 
             (for {
-              eegReply <- eegClient.register(request).map(r => r.status == 201)
-              pontonReply <- registerPonton(eeg, pontonClient)
-            } yield (eegReply && pontonReply)).onComplete {
+              eegStatus <- eegClient.register(request).map(_.status)
+              // Ponton and Keycloak only for a community that was created
+              pontonReply <- if (eegStatus == 201) registerPonton(eeg, pontonClient) else Future.successful(false)
+            } yield (eegStatus, pontonReply)).onComplete {
+              case Success((EegExistsStatus, _)) =>
+                replyTo ! EegRegisterError(EegExistsStatus, eegAlreadyRegistered(eeg.tenant))
               // With a list of accounts (platform#166) exactly these get a login, the contact only if listed.
-              case Success(state) if state && registrationAccounts(eeg).isDefined =>
+              case Success((_, state)) if state && registrationAccounts(eeg).isDefined =>
                 val accounts = registrationAccounts(eeg).get
                 replyTo ! EegRegistered(201, "", validTenant(eeg.tenant) match {
                   case Some(tenant) => setupAccounts(keycloakClient, tenant, accounts, groups)
                   case None => accounts.map(a => AccountResult(a.email, AccountStatus.failed.toString, "Tenant ungültig"))
                 })
-              case Success(state) if state =>
+              case Success((_, state)) if state =>
                 try {
                   log.info(s"Create Keycloak User [exists=${userExists}} - ${eeg.rcNumber}")
                   if (userExists) {

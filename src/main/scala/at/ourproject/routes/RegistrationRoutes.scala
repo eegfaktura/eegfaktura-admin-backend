@@ -39,6 +39,7 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
                   )(keycloakTimeout, scheduler).mapTo[RegisterService.ResponseCommand]
                   onSuccess(processFuture) {
                     case res: RegisterService.EegRegistered => complete(res)
+                    case err: RegisterService.EegRegisterError if err.code == RegisterService.EegExistsStatus => complete(StatusCodes.Conflict, err)
                     case err: RegisterService.EegRegisterError => complete(StatusCodes.BadRequest, err)
                     case _ => complete(StatusCodes.InternalServerError)
                   }
