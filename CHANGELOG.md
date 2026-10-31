@@ -8,20 +8,6 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
-### Fixed
-- **Registering an existing EEG is refused** (261015-ca1). `POST /eeg/register` for a tenant that already exists answered
-  success and attached the new admin to that community. Now, when the backend reports the tenant as existing
-  (`RegisteredEegReply.status` 409), the registration stops: HTTP 409 with `{"code":409,"message":…}` and the text
-  „EEG ist bereits registriert (Tenant …, RC-Nummer …). Es wurde nichts geändert; fehlende Logins oder Ponton über „EEG Accounts“ bzw. „Ponton Verbindung“ ergänzen.“, no call to eda-xp (Ponton), no change in
-  Keycloak. Any other status than 201 from the backend now also skips the Ponton call. The tenant goes to the backend
-  without surrounding spaces. A retry after a partly failed registration is refused too: accounts and Ponton are then
-  added on the registration pages for accounts and Ponton.
-
-### Contract
-- `POST /eeg/register`: new answer HTTP 409 (caller: admin, which shows the message; admin PR of 261015-ca1). Needs the
-  backend version that answers 409 (backend PR of 261015-ca1); with an older backend nothing changes. Rollout order: admin-backend, then backend, then admin: a new backend with an old
-  admin-backend would still write Ponton for an existing community.
-
 ## [1.2.0] – 2026-10-31
 
 ### Added
@@ -70,6 +56,13 @@ this changelog highlights the changes relevant for overview and operations.
     cases show the other status than the one the client got (Pekko decides after the access log).
 
 ### Fixed
+- **Registering an existing EEG is refused** (261015-ca1). `POST /eeg/register` for a tenant that already exists answered
+  success and attached the new admin to that community. Now, when the backend reports the tenant as existing
+  (`RegisteredEegReply.status` 409), the registration stops: HTTP 409 with `{"code":409,"message":…}` and the text
+  „EEG ist bereits registriert (Tenant …, RC-Nummer …). Es wurde nichts geändert; fehlende Logins oder Ponton über „EEG Accounts“ bzw. „Ponton Verbindung“ ergänzen.“, no call to eda-xp (Ponton), no change in
+  Keycloak. Any other status than 201 from the backend now also skips the Ponton call. The tenant goes to the backend
+  without surrounding spaces. A retry after a partly failed registration is refused too: accounts and Ponton are then
+  added on the registration pages for accounts and Ponton.
 - **The token check no longer logs a token prefix or the user id** (eegfaktura-dev tracking admin-backend 261008-ca2).
   At debug level it logged the first 8 characters of every token and the token's `sub` on every request.
 - **Admin master-data updates: a refused update is reported as a failure** (eegfaktura-dev tracking admin-backend
@@ -102,6 +95,11 @@ this changelog highlights the changes relevant for overview and operations.
   the push credentials. Now every action is pinned to a commit, the same SHAs `pr-checks.yml` and `security-scan.yml` already
   use where the action is the same, otherwise the commit the floating tag pointed to on 2026-10-28. Java is fixed to
   `17.0.19+10` and `setup-java` moves from v4 to v6.0.1, both as in `pr-checks.yml`.
+
+### Contract
+- `POST /eeg/register`: new answer HTTP 409 (caller: admin, which shows the message; admin PR of 261015-ca1). Needs the
+  backend version that answers 409 (backend PR of 261015-ca1); with an older backend nothing changes. Rollout order: admin-backend, then backend, then admin: a new backend with an old
+  admin-backend would still write Ponton for an existing community.
 
 ## [1.1.1] – 2026-10-25
 
