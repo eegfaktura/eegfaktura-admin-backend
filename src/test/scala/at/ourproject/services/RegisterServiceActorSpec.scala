@@ -45,9 +45,10 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
 
   private object EegStub extends RegisterEegService {
     val registered = new ConcurrentLinkedQueue[RegisterEegRequest]()
+    @volatile var status: Int = 201
     override def register(in: RegisterEegRequest): Future[RegisteredEegReply] = {
       registered.add(in)
-      Future.successful(RegisteredEegReply(status = 201))
+      Future.successful(RegisteredEegReply(status = status))
     }
     override def eegExists(in: EegRequest): Future[EegResponse] = Future.successful(EegResponse(exists = false))
   }
@@ -235,6 +236,65 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       reply.accounts.map(r => (r.email, r.status)) shouldBe List(
         ("new@test.local", "created"), ("linked@test.local", "linked"), ("fails@test.local", "failed"), ("keine-mail", "failed"))
       kc.created.size shouldBe 1
+    }
+  }
+
+  "RegisterEeg of a tenant the backend already knows" should {
+    // every Keycloak call fails the test: the new admin must not get the community (261015-ca1)
+    def untouchedKeycloak: KeycloakClient = new KeycloakClient(null, null) {
+      private def unexpected = throw new AssertionError("no Keycloak call expected")
+      override def checkUserAlreadyExist(email: String): Boolean = unexpected
+      override def getUserId(email: String): Try[String] = unexpected
+      override def getGroups: List[org.keycloak.representations.idm.GroupRepresentation] = unexpected
+      override def createUser(user: KeycloakClient.User, rcNumber: String,
+                              userGroups: List[org.keycloak.representations.idm.GroupRepresentation]): Unit = unexpected
+      override def ensureAccount(tenant: String, user: AccountUser,
+                                 userGroups: List[org.keycloak.representations.idm.GroupRepresentation]): at.ourproject.keycloak.AccountStatus.Value = unexpected
+    }
+
+    def refused(registration: Eeg) = {
+      PontonStub.registered.clear()
+      EegStub.status = EegExistsStatus
+      try {
+        val service = testKit.spawn(RegisterService(untouchedKeycloak))
+        val probe = testKit.createTestProbe[Command]()
+
+        service ! RegisterEeg(registration, Nil, probe.ref)
+
+        probe.expectMessage(10.seconds, EegRegisterError(409, eegAlreadyRegistered("te100002", "te100002")))
+        PontonStub.registered.size shouldBe 0
+      } finally EegStub.status = 201
+    }
+
+    "be refused without a Ponton or Keycloak step" in {
+      refused(eeg(online = true, PontonCommType.KEP))
+    }
+
+    "hand the backend the tenant without spaces" in {
+      EegStub.registered.clear()
+      refused(eeg(online = false, PontonCommType.NONE).copy(tenant = " te100002 ",
+        accounts = Some(List(AccountUser("Neu", "Account", "new@test.local")))))
+      EegStub.registered.peek().tenant shouldBe "te100002"
+    }
+
+    "be refused with a list of accounts as well" in {
+      refused(eeg(online = true, PontonCommType.KEP).copy(accounts = Some(List(AccountUser("Neu", "Account", "new@test.local")))))
+    }
+  }
+
+  "RegisterEeg when the backend fails" should {
+    "not call Ponton" in {
+      PontonStub.registered.clear()
+      EegStub.status = 500
+      try {
+        val service = testKit.spawn(RegisterService(newUserKeycloak))
+        val probe = testKit.createTestProbe[Command]()
+
+        service ! RegisterEeg(eeg(online = true, PontonCommType.KEP), Nil, probe.ref)
+
+        probe.expectMessage(10.seconds, EegRegisterError(501, "Creating Tenant failed!"))
+        PontonStub.registered.size shouldBe 0
+      } finally EegStub.status = 201
     }
   }
 
