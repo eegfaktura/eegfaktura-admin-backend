@@ -261,7 +261,7 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
 
         service ! RegisterEeg(registration, Nil, probe.ref)
 
-        probe.expectMessage(10.seconds, EegRegisterError(409, eegAlreadyRegistered("te100002")))
+        probe.expectMessage(10.seconds, EegRegisterError(409, eegAlreadyRegistered("te100002", "te100002")))
         PontonStub.registered.size shouldBe 0
       } finally EegStub.status = 201
     }
@@ -270,8 +270,31 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       refused(eeg(online = true, PontonCommType.KEP))
     }
 
+    "hand the backend the tenant without spaces" in {
+      EegStub.registered.clear()
+      refused(eeg(online = false, PontonCommType.NONE).copy(tenant = " te100002 ",
+        accounts = Some(List(AccountUser("Neu", "Account", "new@test.local")))))
+      EegStub.registered.peek().tenant shouldBe "te100002"
+    }
+
     "be refused with a list of accounts as well" in {
       refused(eeg(online = true, PontonCommType.KEP).copy(accounts = Some(List(AccountUser("Neu", "Account", "new@test.local")))))
+    }
+  }
+
+  "RegisterEeg when the backend fails" should {
+    "not call Ponton" in {
+      PontonStub.registered.clear()
+      EegStub.status = 500
+      try {
+        val service = testKit.spawn(RegisterService(newUserKeycloak))
+        val probe = testKit.createTestProbe[Command]()
+
+        service ! RegisterEeg(eeg(online = true, PontonCommType.KEP), Nil, probe.ref)
+
+        probe.expectMessage(10.seconds, EegRegisterError(501, "Creating Tenant failed!"))
+        PontonStub.registered.size shouldBe 0
+      } finally EegStub.status = 201
     }
   }
 

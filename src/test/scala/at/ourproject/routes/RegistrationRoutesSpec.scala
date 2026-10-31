@@ -22,7 +22,7 @@ class RegistrationRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAn
   private implicit val system: ActorSystem[Nothing] = testKit.system
   private implicit val ec: ExecutionContext = system.executionContext
 
-  private val refusal = RegisterService.EegRegisterError(409, RegisterService.eegAlreadyRegistered("te100002"))
+  private val refusal = RegisterService.EegRegisterError(409, RegisterService.eegAlreadyRegistered("te100002", "te100002"))
 
   private val refusingNode: Behavior[RegisterService.Command] = Behaviors.receiveMessage {
     case RegisterService.RegisterEeg(_, _, replyTo) =>

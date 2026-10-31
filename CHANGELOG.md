@@ -12,9 +12,10 @@ this changelog highlights the changes relevant for overview and operations.
 - **Registering an existing EEG is refused** (261015-ca1). `POST /eeg/register` for a tenant that already exists answered
   success and attached the new admin to that community. Now, when the backend reports the tenant as existing
   (`RegisteredEegReply.status` 409), the registration stops: HTTP 409 with `{"code":409,"message":…}` and the text
-  „EEG … ist bereits registriert. Es wurde nichts geändert.“, no call to eda-xp (Ponton), no change in Keycloak. Any other
-  status than 201 from the backend now also skips the Ponton call. A retry after a partly failed registration is refused
-  too: accounts and Ponton are then added on the registration pages for accounts and Ponton.
+  „EEG ist bereits registriert (Tenant …, RC-Nummer …). Es wurde nichts geändert.“, no call to eda-xp (Ponton), no change in
+  Keycloak. Any other status than 201 from the backend now also skips the Ponton call. The tenant goes to the backend
+  without surrounding spaces. A retry after a partly failed registration is refused too: accounts and Ponton are then
+  added on the registration pages for accounts and Ponton.
 
 ### Contract
 - `POST /eeg/register`: new answer HTTP 409 (caller: admin, which shows the message; admin PR of 261015-ca1). Needs the
