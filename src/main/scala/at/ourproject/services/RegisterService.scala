@@ -125,7 +125,7 @@ object RegisterService {
   /** RegisteredEegReply.status of the backend: the tenant exists, nothing was written (261015-ca1). */
   val EegExistsStatus: Int = 409
   def eegAlreadyRegistered(tenant: String, rcNumber: String): String =
-    s"EEG ist bereits registriert (Tenant ${tenant.toUpperCase()}, RC-Nummer ${rcNumber.toUpperCase()}). Es wurde nichts geändert."
+    s"EEG ist bereits registriert (Tenant ${tenant.toUpperCase()}, RC-Nummer ${rcNumber.toUpperCase()}). Es wurde nichts geändert; fehlende Logins oder Ponton über „EEG Accounts“ bzw. „Ponton Verbindung“ ergänzen."
 
   /** Groups of every account of a community: all accounts have the same rights (platform#166). */
   val AccountGroups: List[String] = List("EEG_ADMIN", "EEG_OWNER")
