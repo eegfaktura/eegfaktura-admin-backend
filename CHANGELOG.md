@@ -8,6 +8,8 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.2.0] – 2026-10-31
+
 ### Added
 - **Health endpoints `GET /healthz` and `GET /readyz` for Kubernetes probes** on the HTTP port 8085, without a bearer
   token. `/healthz` (liveness) answers 200 `ok` and checks nothing, so a database outage does not restart the pod.
