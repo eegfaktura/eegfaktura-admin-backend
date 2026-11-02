@@ -105,7 +105,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       val userResource = users.get(userId)
       // Set password credential
       userResource.resetPassword(passwordCred)
-      if (givenPassword.isEmpty) sendUpdatePasswordMail(userResource, userId)
+      if (givenPassword.isEmpty) sendUpdatePasswordMail(userResource)
 
       log.info("Apply user groups ...")
       // Join groups to user
@@ -165,7 +165,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       if (userResource != null) {
         val user = userResource.toRepresentation
 
-        log.info(s"Configure Keycloak-User: $userId")
+        log.info(s"Configure Keycloak-User for tenant ${tenant.toUpperCase()}")
 
         // Users can change their own e-mail: an account with an unconfirmed address could have taken the address of
         // the person meant here and would get the community. Only a confirmed address is linked (platform#166).
@@ -213,10 +213,10 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
           val creds = userResource.credentials().asScala.toList
           if (creds.isEmpty) {
             addCredentials(userResource = userResource, password = KeycloakClient.randomPassword())
-            sendUpdatePasswordMail(userResource, userId)
+            sendUpdatePasswordMail(userResource)
           }
         } catch {
-          case e: Throwable => log.warn(s"Could not read credentials of user $userId, left unchanged: ${e.getMessage}")
+          case e: Throwable => log.warn(s"Could not read the credentials of the user, left unchanged: ${e.getMessage}")
         }
       }
     } catch {
@@ -268,11 +268,11 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
    * (e.g. no SMTP in the realm) is only logged: the operator then sets the
    * password in the Keycloak console.
    */
-  private def sendUpdatePasswordMail(userResource: UserResource, userId: String): Unit = {
+  private def sendUpdatePasswordMail(userResource: UserResource): Unit = {
     try {
       userResource.executeActionsEmail(List("UPDATE_PASSWORD").asJava)
     } catch {
-      case e: Throwable => log.warn(s"Could not send the set-password mail to user $userId: ${e.getMessage}")
+      case e: Throwable => log.warn(s"Could not send the set-password mail to the user: ${e.getMessage}")
     }
   }
 

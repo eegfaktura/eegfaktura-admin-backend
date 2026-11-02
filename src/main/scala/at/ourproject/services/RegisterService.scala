@@ -305,7 +305,7 @@ object RegisterService {
                 Try(keycloakClient.addTenantToUser(id, tenant)) match {
                   case Success(_) => replyTo ! AddTenantToUserResponse(200)
                   case Failure(e) =>
-                    context.log.error(s"Adding tenant ${tenant.toUpperCase()} to user $id failed: ${e.getMessage}")
+                    context.log.error(s"Adding tenant ${tenant.toUpperCase()} to a user failed: ${e.getMessage}")
                     replyTo ! AddTenantToUserResponse(500)
                 }
               case _ => replyTo ! AddTenantToUserResponse(500)
