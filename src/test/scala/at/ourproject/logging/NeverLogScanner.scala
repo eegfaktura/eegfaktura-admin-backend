@@ -19,7 +19,8 @@ object NeverLogScanner {
   val PersonalName = "personal data or secret"
 
   private val LogCall = """(?:\b(?:log|logger)\.(?:trace|debug|info|warn|error)|getLogger\([^)]*\)\.(?:trace|debug|info|warn|error)|\.log|\.addKeyValue|\bprintln)\s*\(""".r
-  private val Term = """(?<![\w.])[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*""".r
+  // a chain of names; after a call too: `Option(x).email` is `email` here
+  private val Term = """(?:(?<![\w.])|(?<=\)\.))[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*""".r
   private val CaseClass = """case class (\w+)""".r
   private val KeyLiteral = """^\s*"([^"]*)"""".r
 

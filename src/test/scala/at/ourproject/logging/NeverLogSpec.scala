@@ -87,6 +87,12 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
       rules("""log.warn(user.toString())""") shouldBe List("user.toString" -> ToStringCall)
     }
 
+    "find them behind a call too" in {
+      rules("""log.warn(s"got ${find(a).toString}")""").map(_._2) should contain(ToStringCall)
+      rules("""log.error(s"failed: ${new Oops("a").getMessage}")""").map(_._2) should contain(MessageOnly)
+      rules("""log.info(s"${find(a).email}")""").map(_._2) should contain(PersonalName)
+    }
+
     "find a field that holds a model" in {
       val src = """case class Eeg(user: UserInfo); case class UserInfo(name: String); class A { log.info(s"${eeg.user}") }"""
       rules(src) shouldBe List("eeg.user" -> ModelField)
