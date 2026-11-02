@@ -26,6 +26,9 @@ object AccessLog {
     @volatile var route: Option[String] = None
     @volatile var tenant: Option[String] = None
     @volatile var client: Option[String] = None
+
+    /** The fields every line of the request carries (`LogContext`). */
+    def logFields: Map[String, String] = Map("request.id" -> requestId) ++ tenant.map("tenant.id" -> _)
   }
 
   val ContextKey: AttributeKey[Context] = AttributeKey[Context]("access-log-context")
@@ -84,7 +87,10 @@ object AccessLog {
           writeOnce(TimeoutResponse.status.intValue)
           TimeoutResponse.addHeader(idHeader)
         })
-        sealedRoute(rc.withRequest(request.addAttribute(ContextKey, ctx))).transform { result =>
+        val requestContext = rc.withRequest(request.addAttribute(ContextKey, ctx))
+          .withExecutionContext(LogContext.on(rc.executionContext)(() => ctx.logFields))
+          .withLog(LogContext.RouteLog)
+        LogContext.scoped(ctx.logFields)(sealedRoute(requestContext)).transform { result =>
           val status = result match {
             case Success(RouteResult.Complete(response)) => response.status.intValue
             case Success(RouteResult.Rejected(_)) => 404 // not reached: the route is sealed
@@ -117,7 +123,10 @@ object AccessLog {
   }
 
   private def update(f: Context => Unit): Directive0 =
-    optionalAttribute(ContextKey).flatMap { ctx => ctx.foreach(f); pass }
+    optionalAttribute(ContextKey).flatMap { ctx =>
+      ctx.foreach { c => f(c); LogContext.put(c.logFields) }
+      pass
+    }
 
   /** Sets the client of the access line (the token's azp). */
   def client(azp: Option[String]): Directive0 = update(_.client = azp.flatMap(plainToken))

@@ -1,9 +1,10 @@
 package at.ourproject.logging
 
-import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, HealthRoutes, RegistrationRoutes}
+import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, HealthRoutes, KeycloakJwtAuthenticator, RegistrationRoutes}
 import at.ourproject.services.{AdminService, RegisterService}
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.{Logger => LogbackLogger}
+import ch.qos.logback.core.AppenderBase
 import ch.qos.logback.core.read.ListAppender
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.typesafe.config.ConfigFactory
@@ -22,6 +23,8 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import org.slf4j.LoggerFactory
 
 import java.nio.charset.StandardCharsets
+import java.util.Base64
+import java.util.concurrent.ConcurrentLinkedQueue
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.jdk.CollectionConverters._
@@ -39,10 +42,13 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
   override def beforeAll(): Unit = {
     appender.start()
     accessLogger.addAppender(appender)
+    rootAppender.start()
+    rootLogger.addAppender(rootAppender)
   }
 
   override def afterAll(): Unit = {
     accessLogger.detachAppender(appender)
+    rootLogger.detachAppender(rootAppender)
     testKit.shutdownTestKit()
   }
 
@@ -227,6 +233,99 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       AccessLog.traceIds(s"00-$Trace-${"0" * 16}-01") shouldBe None
       AccessLog.traceIds(s"00-$Trace-$Span-01-more") shouldBe None
       AccessLog.traceIds(s"00-${Trace.toUpperCase}-$Span-01") shouldBe None
+    }
+  }
+
+  // prepareForDeferredProcessing: the MDC of an event is read on the thread that logs it, not when the test looks
+  private val events = new ConcurrentLinkedQueue[ILoggingEvent]
+  private val rootAppender = new AppenderBase[ILoggingEvent] {
+    override def append(event: ILoggingEvent): Unit = { event.prepareForDeferredProcessing(); events.add(event) }
+  }
+  private val rootLogger = LoggerFactory.getLogger("ROOT").asInstanceOf[LogbackLogger]
+
+  /** The fields of the lines with this message text, as the image writes them. */
+  private def lines(message: String): List[Map[String, Any]] =
+    events.asScala.toList.filter(_.getFormattedMessage.contains(message)).map(encoder.fieldsOf(_).toMap)
+
+  private val requestUser = AuthenticatedUser("4711", None,
+    Map("realm_access" -> Map[String, Any]("roles" -> List("superuser").asJava).asJava))
+  private val anyToken: Credentials => Future[Option[AuthenticatedUser]] = _ => Future.successful(Some(requestUser))
+
+  private val messageFields = Promise[Map[String, String]]()
+  private val requestNode = testKit.spawn(Behaviors.receiveMessage[RegisterService.Command] {
+    case m @ RegisterService.PontonRegister(_, _, _, replyTo) =>
+      messageFields.trySuccess(m.logFields)
+      replyTo ! RegisterService.PontonRegisterResponse(200, "")
+      Behaviors.same
+    case _ => Behaviors.same
+  })
+
+  private val failingAdmin = testKit.spawn(Behaviors.receiveMessage[AdminService.Command] {
+    case AdminService.MessageUpdate(_, replyTo) =>
+      replyTo ! AdminService.MessageUpdateFail(500, "backend down", Some(new IllegalStateException("backend down")))
+      Behaviors.same
+    case _ => Behaviors.same
+  })
+
+  private lazy val requestPort = {
+    val routes = AccessLog.accessLog(
+      new RegistrationRoutes(anyToken, requestNode).route ~
+        new AdminRoutes(null, anyToken, failingAdmin).route ~
+        path("boom") { AccessLog.tenant("rc100200") { complete(Future.failed[String](new IllegalStateException("kaboom"))) } })
+    Await.result(Http().newServerAt("127.0.0.1", 0).bind(routes), 10.seconds).localAddress.getPort
+  }
+
+  private def callRequest(request: HttpRequest, requestId: String): HttpResponse =
+    Await.result(Http().singleRequest(request
+      .withUri(s"http://127.0.0.1:$requestPort${request.uri}")
+      .addHeader(RawHeader("X-Request-Id", requestId))
+      .addHeader(Authorization(OAuth2BearerToken("token"))))
+      .flatMap(r => r.entity.discardBytes().future.map(_ => r)), 10.seconds)
+
+  private def post(uri: String, json: String) =
+    HttpRequest(HttpMethods.POST, uri, entity = HttpEntity(ContentTypes.`application/json`, json))
+
+  "the lines of a request" should {
+    "carry request id, tenant and the exception on the route's error line after an actor's answer" in {
+      val response = callRequest(post("/admin/master/update",
+        """{"updateClass":"EEG","tenant":"rc100200","participantId":null,"meteringPoint":null,"value":{}}"""), "req-admin")
+      response.status.intValue shouldBe 400
+      val line = lines("Message Update Failed").find(_.get("request.id").contains("req-admin"))
+      line should not be empty
+      line.get("tenant.id") shouldBe "RC100200"
+      line.get("log.level") shouldBe "error"
+      line.get("error.type") shouldBe "java.lang.IllegalStateException"
+    }
+
+    "reach an actor with the message, also when the tenant comes from a body decoded on another thread" in {
+      callRequest(post("/eeg/ponton",
+        """{"tenant":"rc100300","rcNumber":"rc100300","pontonInfo":{"username":"u","password":"p","domain":"d","pontonCommType":"KEP"}}"""),
+        "req-ponton").status.intValue shouldBe 200
+      Await.result(messageFields.future, 10.seconds) shouldBe Map("request.id" -> "req-ponton", "tenant.id" -> "RC100300")
+    }
+
+    "be on Pekko's error line of an exception in a route" in {
+      callRequest(HttpRequest(uri = "/boom"), "req-boom").status.intValue shouldBe 500
+      val line = lines("kaboom").find(_.get("request.id").contains("req-boom"))
+      line should not be empty
+      line.get("tenant.id") shouldBe "RC100200"
+      line.get("log.level") shouldBe "error"
+      line.get("error.type") shouldBe "java.lang.IllegalStateException"
+    }
+
+    "be on the warn line of a refused token" in {
+      def part(json: String) = Base64.getUrlEncoder.withoutPadding.encodeToString(json.getBytes(StandardCharsets.UTF_8))
+      val token = s"""${part("""{"alg":"RS256","kid":"k1"}""")}.${part("""{"iss":"i"}""")}.${part("sig")}"""
+      val refusing = new KeycloakJwtAuthenticator("http://127.0.0.1:1/certs", "i", "a")
+      val route = AccessLog.accessLog(KeycloakJwtAuthenticator.authenticated(refusing.authenticate) { _ => complete("ok") })
+      val bound = Await.result(Http().newServerAt("127.0.0.1", 0).bind(route), 10.seconds).localAddress.getPort
+
+      val response = Await.result(Http().singleRequest(HttpRequest(uri = s"http://127.0.0.1:$bound/",
+        headers = List(RawHeader("X-Request-Id", "req-token"), Authorization(OAuth2BearerToken(token)))))
+        .flatMap(r => r.entity.discardBytes().future.map(_ => r)), 20.seconds)
+
+      response.status.intValue shouldBe 401
+      lines("while validating token").flatMap(_.get("request.id")) should contain("req-token")
     }
   }
 }

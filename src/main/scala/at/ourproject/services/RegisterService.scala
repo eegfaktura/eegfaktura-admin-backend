@@ -7,6 +7,7 @@ import at.energydash.admin.{RegisterPontonRequest, RegisterPontonServiceClient}
 import at.ourproject.admin.{AdminEegServiceClient, UpdateEegRequest}
 import at.ourproject.keycloak.{AccountStatus, KeycloakClient}
 import at.ourproject.keycloak.KeycloakClient.{AccountView, User}
+import at.ourproject.logging.LogContext
 import at.ourproject.register.{RegisterEegRequest, RegisterEegServiceClient}
 import io.circe.{Decoder, Encoder}
 import org.slf4j.{Logger, LoggerFactory}
@@ -67,7 +68,7 @@ object RegisterService {
   import at.ourproject.services.GridAreaType.GridArea
   import at.ourproject.services.PontonCommType.PontonComm
 
-  trait Command
+  trait Command extends LogContext.Carrier
 
   trait ResponseCommand extends Command
 
@@ -200,7 +201,7 @@ object RegisterService {
       // This is the only RegisterService actor: an exception escaping a message
       // must not stop it. Resume keeps the behaviour and the gRPC clients; the
       // actor holds no state that a failed message could leave inconsistent.
-      Behaviors.supervise(Behaviors.receiveMessage[Command] { message => {
+      Behaviors.withMdc[Command]((message: Command) => message.logFields)(Behaviors.supervise(Behaviors.receiveMessage[Command] { message => {
         message match {
           case RegisterEeg(eeg, _, replyTo) if eeg.online && eeg.pontonInfo.pontonCommType == PontonCommType.MAIL =>
             replyTo ! EegRegisterError(400, MailNotSupported)
@@ -286,7 +287,7 @@ object RegisterService {
               case Success((status, _)) =>
                 log.error(s"Error creating EEG (backend status $status, no Ponton registration)")
                 replyTo ! EegRegisterError(501, "Creating Tenant failed!")
-            }
+            }(LogContext.inherited(ec))
           }
 
           case _: RegisterParticipant =>
@@ -365,7 +366,7 @@ object RegisterService {
         }
         Behaviors.same
       }
-      }).onFailure[Exception](SupervisorStrategy.resume)
+      }).onFailure[Exception](SupervisorStrategy.resume))
     }
   }
 }

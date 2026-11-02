@@ -3,7 +3,7 @@ package at.ourproject.routes
 import org.apache.pekko.http.scaladsl.server.Directive1
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
-import at.ourproject.logging.AccessLog
+import at.ourproject.logging.{AccessLog, LogContext}
 import com.nimbusds.jose.{JOSEException, JWSAlgorithm}
 import com.nimbusds.jose.jwk.source.RemoteJWKSet
 import com.nimbusds.jose.proc.{BadJOSEException, JWSVerificationKeySelector, SecurityContext}
@@ -86,7 +86,7 @@ class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expected
         log.warn("Unexpected exception validating token (kid={}): {}", kid, e.toString)
         throw e
     }
-  }
+  }(LogContext.inherited(ec))
 
   // Extract user principal (adapt to your needs)
   private def claimsToUser(claims: JWTClaimsSet): AuthenticatedUser = {
