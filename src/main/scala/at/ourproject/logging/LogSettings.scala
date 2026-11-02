@@ -65,7 +65,7 @@ object LogSettings {
   /**
    * java.util.logging (gRPC, pgjdbc, ...) goes through SLF4J and the EcsEncoder instead of plain text on stderr. Its
    * levels stay as they are (INFO): they deliberately do not follow LOG_LEVEL, because gRPC's FINE lines dump the
-   * frames, and with them the Ponton password of a registration.
+   * frames of its calls.
    */
   def bridgeJavaUtilLogging(): Unit = {
     SLF4JBridgeHandler.removeHandlersForRootLogger()
