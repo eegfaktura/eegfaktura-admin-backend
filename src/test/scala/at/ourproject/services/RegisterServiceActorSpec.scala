@@ -428,4 +428,34 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       probe.expectMessage(10.seconds, AddTenantToUserResponse(200))
     }
   }
+
+  "the error lines" should {
+    "carry the exception and no Keycloak user id" in {
+      val service = testKit.spawn(RegisterService(keycloak(() => throw new IllegalStateException("keycloak down"))))
+      val probe = testKit.createTestProbe[Command]()
+
+      LoggingTestKit.error[IllegalStateException]
+        .withMessageContains("Adding tenant TE100002")
+        .withCustom(event => !event.message.contains("user-id") && !event.message.contains("keycloak down"))
+        .expect {
+          service ! AddTenantToUser("TE100002", "user@test.local", probe.ref)
+        }(testKit.system)
+      probe.expectMessage(10.seconds, AddTenantToUserResponse(500))
+    }
+
+    "carry the exception of a failed Keycloak step of a registration" in {
+      val failing = new KeycloakClient(null, null) {
+        override def checkUserAlreadyExist(email: String): Boolean = throw new IllegalStateException("keycloak down")
+      }
+      val service = testKit.spawn(RegisterService(failing))
+      val probe = testKit.createTestProbe[Command]()
+
+      LoggingTestKit.error[IllegalStateException]
+        .withMessageContains("Creating/Updating Keycloak User failed")
+        .expect {
+          service ! RegisterEeg(eeg(online = false, PontonCommType.NONE), Nil, probe.ref)
+        }(testKit.system)
+      probe.expectMessageType[EegRegisterError](10.seconds).code shouldBe 510
+    }
+  }
 }

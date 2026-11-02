@@ -21,6 +21,7 @@ object Registration extends App {
     System.err.println(s"Refusing to start: $reason")
     sys.exit(2)
   }
+  LogSettings.bridgeJavaUtilLogging()
 
   implicit val log: Logger = LoggerFactory.getLogger(getClass)
   private val keycloakConfig = KeycloakConfig.keycloakAdminConfig

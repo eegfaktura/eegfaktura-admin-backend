@@ -160,7 +160,7 @@ object RegisterService {
         Try(keycloakClient.ensureAccount(tenant, u, userGroups)) match {
           case Success(status) => AccountResult(u.email, status.toString, "")
           case Failure(e) =>
-            log.error(s"Setting up an account for tenant ${tenant.toUpperCase()} failed: ${e.getMessage}")
+            log.error(s"Setting up an account for tenant ${tenant.toUpperCase()} failed", e)
             AccountResult(u.email, AccountStatus.failed.toString, e.getMessage)
         }
     }
@@ -277,14 +277,14 @@ object RegisterService {
                 } catch {
                   case e: Exception =>
                     // not $userExists: when the check itself failed, reading it here throws again and no reply is sent
-                    log.error(s"Creating/Updating Keycloak User failed ${eeg.rcNumber} - ${e.getMessage}")
+                    log.error(s"Creating/Updating Keycloak User failed ${eeg.rcNumber}", e)
                     replyTo ! EegRegisterError(510, s"Creating Keycloak User failed! ${e.getMessage}")
                 }
               case Failure(e) =>
-                log.error(s"Failure Create User: ${e.toString}")
+                log.error("Failure Create User", e)
                 replyTo ! EegRegisterError(502, s"Creating Tenant failed! ${e.getMessage}")
-              case e =>
-                log.error(s"Error creating EEG ${e.toString}")
+              case Success((status, _)) =>
+                log.error(s"Error creating EEG (backend status $status, no Ponton registration)")
                 replyTo ! EegRegisterError(501, "Creating Tenant failed!")
             }
           }
@@ -305,7 +305,7 @@ object RegisterService {
                 Try(keycloakClient.addTenantToUser(id, tenant)) match {
                   case Success(_) => replyTo ! AddTenantToUserResponse(200)
                   case Failure(e) =>
-                    context.log.error(s"Adding tenant ${tenant.toUpperCase()} to a user failed: ${e.getMessage}")
+                    context.log.error(s"Adding tenant ${tenant.toUpperCase()} to a user failed", e)
                     replyTo ! AddTenantToUserResponse(500)
                 }
               case _ => replyTo ! AddTenantToUserResponse(500)
@@ -328,7 +328,7 @@ object RegisterService {
             Try(keycloakClient.listAccounts(validTenant(tenant).get)) match {
               case Success(accounts) => replyTo ! ListAccountsResponse(200, accounts)
               case Failure(e) =>
-                log.error(s"Listing the accounts of tenant ${tenant.toUpperCase()} failed: ${e.getMessage}")
+                log.error(s"Listing the accounts of tenant ${tenant.toUpperCase()} failed", e)
                 replyTo ! ListAccountsResponse(500, Nil, "Accounts konnten nicht geladen werden")
             }
 

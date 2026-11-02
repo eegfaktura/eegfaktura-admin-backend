@@ -17,7 +17,8 @@ object AdminService {
 
   case object MessageUpdateOk extends Command
 
-  case class MessageUpdateFail(status: Int, msg: String) extends Command
+  /** cause: the exception of a failed call, for the error line; none when the backend refused the update. */
+  case class MessageUpdateFail(status: Int, msg: String, cause: Option[Throwable] = None) extends Command
 
   def apply(): Behavior[Command] = Behaviors.setup[Command] { context =>
     implicit def system: ActorSystem[Nothing] = context.system
@@ -42,7 +43,7 @@ object AdminService {
               )) onComplete {
                 case Success(reply) if reply.status == 200 || reply.status == 201 => replyTo ! MessageUpdateOk
                 case Success(reply) => replyTo ! MessageUpdateFail(reply.status, reply.message)
-                case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage)
+                case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage, Some(ex))
               }
             case UpdateClassEnum.INACTIVESINCE =>
               adminClient.updateValue(UpdateEegRequest(
@@ -54,7 +55,7 @@ object AdminService {
               )) onComplete {
                 case Success(reply) if reply.status == 200 || reply.status == 201 => replyTo ! MessageUpdateOk
                 case Success(reply) => replyTo ! MessageUpdateFail(reply.status, reply.message)
-                case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage)
+                case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage, Some(ex))
               }
             case UpdateClassEnum.ACTIVESINCE =>
               adminClient.updateValue(UpdateEegRequest(
@@ -66,7 +67,7 @@ object AdminService {
               )) onComplete {
                 case Success(reply) if reply.status == 200 || reply.status == 201 => replyTo ! MessageUpdateOk
                 case Success(reply) => replyTo ! MessageUpdateFail(reply.status, reply.message)
-                case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage)
+                case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage, Some(ex))
               }
             case UpdateClassEnum.EEG =>
               adminClient.updateValue(UpdateEegRequest(
@@ -76,7 +77,7 @@ object AdminService {
               )) onComplete {
                 case Success(reply) if reply.status == 200 || reply.status == 201 => replyTo ! MessageUpdateOk
                 case Success(reply) => replyTo ! MessageUpdateFail(reply.status, reply.message)
-                case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage)
+                case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage, Some(ex))
               }
             case UpdateClassEnum.PARTICIPANT =>
               adminClient.updateValue(UpdateEegRequest(
@@ -87,7 +88,7 @@ object AdminService {
               )) onComplete {
                 case Success(reply) if reply.status == 200 || reply.status == 201 => replyTo ! MessageUpdateOk
                 case Success(reply) => replyTo ! MessageUpdateFail(reply.status, reply.message)
-                case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage)
+                case Failure(ex) => replyTo ! MessageUpdateFail(500, ex.getMessage, Some(ex))
               }
           }
       }

@@ -35,7 +35,7 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
         keycloakCore, keycloakAdminClient,
         sttpClient3,
-        /*slf4j,*/ scalaLogging, logback,
+        /*slf4j,*/ scalaLogging, logback, julToSlf4j,
         akka, akkaStream, akkaHttp, pekkoSlf4j, pekkoDiscovery,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
         slick, slickHikaricp, postgresLib, nimbusdsJwt,

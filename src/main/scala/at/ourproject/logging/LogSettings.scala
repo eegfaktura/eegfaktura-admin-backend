@@ -2,6 +2,7 @@ package at.ourproject.logging
 
 import ch.qos.logback.core.PropertyDefinerBase
 import com.typesafe.config.{Config, ConfigFactory}
+import org.slf4j.bridge.SLF4JBridgeHandler
 
 // The one logging setup of the service (eegfaktura-dev logging concept W-261008-ca2): every line goes through
 // logback.xml and the EcsEncoder there - the application's SLF4J loggers and Pekko's (Slf4jLogger, see `pekkoLogging`).
@@ -44,6 +45,16 @@ object LogSettings {
   /** The level logback.xml uses for an environment variable, with another one (or `default`) as fallback. */
   def levelOf(env: Map[String, String], variable: String, fallback: Option[String], default: String = "INFO"): String =
     valueOf(env, variable).orElse(fallback.flatMap(valueOf(env, _))).flatMap(parseLevel).getOrElse(default)
+
+  /**
+   * java.util.logging (gRPC, pgjdbc, ...) goes through SLF4J and the EcsEncoder instead of plain text on stderr. Its
+   * levels stay as they are (INFO): they deliberately do not follow LOG_LEVEL, because gRPC's FINE lines dump the
+   * frames, and with them the Ponton password of a registration.
+   */
+  def bridgeJavaUtilLogging(): Unit = {
+    SLF4JBridgeHandler.removeHandlersForRootLogger()
+    SLF4JBridgeHandler.install()
+  }
 
   /**
    * Pekko logs through SLF4J and leaves the level decision to logback; this goes over the application.conf (also

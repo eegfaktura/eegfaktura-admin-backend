@@ -34,7 +34,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       val userResources = users.searchByEmail(email, true)
       userResources.get(0)
     } catch {
-      case e: Exception => throw new RuntimeException(s"No valid user found: ${e.getMessage}")
+      case e: Exception => throw new RuntimeException(s"No valid user found: ${e.getMessage}", e)
     }
   }
 
@@ -120,7 +120,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
 //      users.get(userId).executeActionsEmail(List("UPDATE_PASSWORD", "VERIFY_EMAIL").asJava)
 
     } catch {
-      case e: Exception => throw new RuntimeException(s"Cannot create User: ${e.getMessage}")
+      case e: Exception => throw new RuntimeException(s"Cannot create User: ${e.getMessage}", e)
     }
   }
 
@@ -216,14 +216,14 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
             sendUpdatePasswordMail(userResource)
           }
         } catch {
-          case e: Throwable => log.warn(s"Could not read the credentials of the user, left unchanged: ${e.getMessage}")
+          case e: Throwable => log.warn("Could not read the credentials of the user, left unchanged", e)
         }
       }
     } catch {
       case e: IllegalStateException => throw e
       case e: Throwable =>
-        log.error(e.getMessage)
-        throw new RuntimeException(s"Cannot configure user: ${e.getMessage}")
+        log.error("Configuring the Keycloak user failed", e)
+        throw new RuntimeException(s"Cannot configure user: ${e.getMessage}", e)
     }
   }
 
@@ -272,7 +272,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
     try {
       userResource.executeActionsEmail(List("UPDATE_PASSWORD").asJava)
     } catch {
-      case e: Throwable => log.warn(s"Could not send the set-password mail to the user: ${e.getMessage}")
+      case e: Throwable => log.warn("Could not send the set-password mail to the user", e)
     }
   }
 
