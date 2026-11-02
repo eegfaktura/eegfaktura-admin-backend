@@ -36,10 +36,14 @@ object AccessLog {
 
   private val SkippedPaths = Set("/healthz", "/readyz")
   private val Token = "[A-Za-z0-9._:-]{1,128}".r
+  private val TenantId = "[A-Z0-9][A-Z0-9_-]{0,63}".r
   private val Traceparent = "([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}(-.*)?".r
 
-  /** A plain token (request id, client id, tenant) or None; anything else is not written. */
+  /** A plain token (request id, client id) or None; anything else is not written. */
   def plainToken(value: String): Option[String] = Option(value).map(_.trim).filter(Token.matches)
+
+  /** tenant.id: upper case, in the shape agreed for all services (RC100200, GEA GC123456-001), or not written. */
+  def tenantId(value: String): Option[String] = Option(value).map(_.trim.toUpperCase).filter(TenantId.matches)
 
   /** trace.id and span.id of a W3C traceparent; version ff and all-zero ids are invalid. */
   def traceIds(value: String): Option[(String, String)] = Option(value).map(_.trim).collect {
@@ -132,7 +136,7 @@ object AccessLog {
   def client(azp: Option[String]): Directive0 = update(_.client = azp.flatMap(plainToken))
 
   /** Sets the tenant the route acts on (upper case, as the services use it). */
-  def tenant(tenant: String): Directive0 = update(_.tenant = plainToken(tenant).map(_.toUpperCase))
+  def tenant(tenant: String): Directive0 = update(_.tenant = tenantId(tenant))
 
   /** `directive`, setting the tenant its value names. */
   def withTenant[T](directive: Directive1[T])(tenantOf: T => String): Directive1[T] =

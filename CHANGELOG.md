@@ -15,6 +15,9 @@ Log output only (eegfaktura-dev#45); routes, answers and stored data are unchang
 - **`request.id` and `tenant.id` are on all lines of an HTTP request**, not only the access line: route, `RegisterService`
   actor, Keycloak client, token check and Pekko's line for an exception in a route. `tenant.id` follows once the route
   knows the tenant. Not on: lines of libraries on their own threads and the health routes, which have no access line.
+- **`tenant.id` follows the rule of all services**, also on the access line: `^[A-Z0-9][A-Z0-9_-]{0,63}$` after
+  upper-casing (GEA `GC123456-001` included), otherwise the field is left out. Before, `.` and `:` and up to 128
+  characters passed.
 - **Error lines carry the exception** (`error.type`, `error.message`, `error.stack_trace`) instead of its message as
   text, and so do the warn lines of the Keycloak client and of `/readyz`. The message text of these lines changed. A
   refused token stays a warn line without a stack. The line for an exception in a route now has the logger

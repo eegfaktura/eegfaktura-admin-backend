@@ -150,6 +150,13 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       assertNoPersonalData(lines.head._1)
     }
 
+    "carry a GEA tenant, and no tenant.id for a value outside the agreed shape" in {
+      val (_, gea) = call("/eeg/accounts?tenant=gc123456-001", Bearer("superuser"))
+      gea.head._2.get("tenant.id").asText shouldBe "GC123456-001"
+      val (_, other) = call("/eeg/accounts?tenant=te.st:1", Bearer("superuser"))
+      other.head._2.has("tenant.id") shouldBe false
+    }
+
     "mark a request without token as refused, without route, tenant or client" in {
       val (response, lines) = call("/vfeeg/participants?tenant=RC100200")
       response.status.intValue shouldBe 401
