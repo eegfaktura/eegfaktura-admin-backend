@@ -3,8 +3,9 @@ package at.ourproject.logging
 /**
  * Finds what must never reach a log line (logging concept point 4), from the source text alone, so without a new
  * dependency. Comments and the text of string literals are blanked first; what is left of a log call is code and
- * interpolated expressions. Default-deny: a bare value (`$x`, `, x`) is a hit whatever its type, because the source
- * does not tell a `String` from a case class; a plain one needs an entry in the allowlist of `NeverLogSpec`.
+ * interpolated expressions. A bare value (`$x`, `, x`) is a hit whatever its type (default-deny), because the source
+ * does not tell a `String` from a case class; a plain one needs an entry in the allowlist of `NeverLogSpec`. A dotted
+ * value is not default-deny: it is a hit by the names below or when it holds a model type, so `${eeg.contact.web}` passes.
  */
 object NeverLogScanner {
 
@@ -29,8 +30,9 @@ object NeverLogScanner {
   private val MessageCalls = Set("getMessage", "getLocalizedMessage")
   // lower case; matched inside an identifier, so `getEmail`, `firstName` and `accessToken` count
   private val Names = Seq("firstname", "lastname", "email", "iban", "password", "secret", "token", "userid")
-  // matched as a whole camel-case word: `getSubject` counts, `substring` does not
-  private val Words = Set("sub", "subject")
+  // matched as a whole camel-case word, on every segment of a dotted value: `getSubject` and `eeg.contact.streetNumber`
+  // count, `substring` does not
+  private val Words = Set("sub", "subject", "username", "phone", "street", "owner", "name", "city", "zip")
 
   /**
    * `src` with comments and literal text blanked and interpolated expressions left as code; offsets and line breaks

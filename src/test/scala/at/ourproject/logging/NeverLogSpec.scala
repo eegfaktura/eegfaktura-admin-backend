@@ -115,6 +115,13 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
       }
     }
 
+    "check every segment of a dotted value against the names" in {
+      Seq("eeg.contact.street", "eeg.contact.streetNumber", "eeg.contact.city", "eeg.contact.zip", "eeg.contact.phone",
+        "eeg.user.username", "user.getUsername", "user.userName", "eeg.accountInfo.owner", "eeg.grid.name", "eeg.name").foreach { term =>
+        withClue(term) { hitsOf(s"""log.info(s"x $${$term}")""").map(_.rule) shouldBe List(PersonalName) }
+      }
+    }
+
     "find a field name in a key-value pair" in {
       rules("""line.addKeyValue("user.email", "x")""") shouldBe List("user.email" -> PersonalName)
     }
