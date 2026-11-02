@@ -51,7 +51,7 @@ lazy val root = (project in file("."))
     // newer one - raise JacksonVersion / GrpcVersion in Dependencies.scala together with such a bump.
     // Removal plan for gRPC/protobuf: pekko-grpc plugin/runtime 1.2.0 (sbt 1.9+, given) brings grpc 1.75
     // and protobuf 3.25.8 natively, then grpcFamily and protobufJava can go.
-    dependencyOverrides ++= jacksonFamily ++ grpcFamily,
+    dependencyOverrides ++= jacksonFamily ++ grpcFamily :+ guava,
 
   )
 
