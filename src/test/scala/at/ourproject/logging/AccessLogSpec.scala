@@ -3,7 +3,6 @@ package at.ourproject.logging
 import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, HealthRoutes, KeycloakJwtAuthenticator, RegistrationRoutes}
 import at.ourproject.services.{AdminService, RegisterService}
 import ch.qos.logback.classic.spi.ILoggingEvent
-import ch.qos.logback.classic.{Logger => LogbackLogger}
 import ch.qos.logback.core.AppenderBase
 import ch.qos.logback.core.read.ListAppender
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
@@ -20,7 +19,6 @@ import org.apache.pekko.http.scaladsl.settings.ServerSettings
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.slf4j.LoggerFactory
 
 import java.nio.charset.StandardCharsets
 import java.util.Base64
@@ -37,7 +35,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
   private implicit val ec: ExecutionContext = system.executionContext
 
   private val appender = new ListAppender[ILoggingEvent]
-  private val accessLogger = LoggerFactory.getLogger("at.ourproject.access").asInstanceOf[LogbackLogger]
+  private val accessLogger = JulBridgeSpec.logbackLogger("at.ourproject.access")
 
   override def beforeAll(): Unit = {
     appender.start()
@@ -241,7 +239,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
   private val rootAppender = new AppenderBase[ILoggingEvent] {
     override def append(event: ILoggingEvent): Unit = { event.prepareForDeferredProcessing(); events.add(event) }
   }
-  private val rootLogger = LoggerFactory.getLogger("ROOT").asInstanceOf[LogbackLogger]
+  private val rootLogger = JulBridgeSpec.logbackLogger("ROOT")
 
   /** The fields of the lines with this message text, as the image writes them. */
   private def lines(message: String): List[Map[String, Any]] =

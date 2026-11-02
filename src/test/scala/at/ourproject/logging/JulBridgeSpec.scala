@@ -13,6 +13,12 @@ import java.nio.charset.StandardCharsets
 import java.util.logging.{Level, Logger => JulLogger}
 import scala.jdk.CollectionConverters._
 
+object JulBridgeSpec {
+  /** A logback logger; while another suite is the first to use SLF4J, the factory hands out placeholders. */
+  def logbackLogger(name: String): LogbackLogger =
+    Iterator.continually(LoggerFactory.getLogger(name)).collectFirst { case logger: LogbackLogger => logger }.get
+}
+
 // The tests share a JVM with sbt: the root handlers of java.util.logging are put back afterwards.
 class JulBridgeSpec extends AnyWordSpec with Matchers {
 
@@ -24,7 +30,7 @@ class JulBridgeSpec extends AnyWordSpec with Matchers {
       val handlers = root.getHandlers.toList
       val appender = new ListAppender[ILoggingEvent]
       appender.start()
-      val logger = LoggerFactory.getLogger(Name).asInstanceOf[LogbackLogger]
+      val logger = JulBridgeSpec.logbackLogger(Name)
       logger.addAppender(appender)
       val previous = logger.getLevel
       logger.setLevel(ch.qos.logback.classic.Level.ALL) // a higher LOG_LEVEL must not be what keeps FINE out
