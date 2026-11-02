@@ -89,7 +89,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
         } else response
       }
       val response = create(candidates)
-      log.info(s"CREATE USER RESPONSE: ${response.getStatus.toString}")
+      log.info(s"CREATE USER RESPONSE: ${response.getStatus}")
       val userId = CreatedResponseUtil.getCreatedId(response)
 
       // Set password for User
