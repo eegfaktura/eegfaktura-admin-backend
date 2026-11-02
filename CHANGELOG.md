@@ -8,6 +8,29 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Changed
+Log output only (eegfaktura-dev#45); routes, answers and stored data are unchanged.
+- **The Keycloak user id (`sub`) is gone from the log lines**, at every level: it conflicts with "no user tracking". The
+  lines name the tenant where they need a subject.
+- **`request.id` and `tenant.id` are on all lines of an HTTP request**, not only the access line: route, `RegisterService`
+  actor, Keycloak client, token check and Pekko's line for an exception in a route. `tenant.id` follows once the route
+  knows the tenant. Not on: lines of libraries on their own threads and the health routes, which have no access line.
+- **Error lines carry the exception** (`error.type`, `error.message`, `error.stack_trace`) instead of its message as
+  text, and so do the warn lines of the Keycloak client and of `/readyz`. The message text of these lines changed. A
+  refused token stays a warn line without a stack. The line for an exception in a route now has the logger
+  `at.ourproject.http`, which follows `LOG_LEVEL_APP`.
+- **`java.util.logging` goes through SLF4J** (gRPC, pgjdbc, ...), so these lines are JSON on stdout instead of plain text
+  on stderr. New dependency `org.slf4j:jul-to-slf4j` 2.0.17 (MIT), the version of the `slf4j-api` in use. Their levels
+  stay at `INFO` and do not follow `LOG_LEVEL=debug`: gRPC's debug lines dump the frames.
+- **New start-up line** `event.action=service.start` with `service.version` and the levels in effect
+  (`log.effective_level`, `log.effective_level_app`), written at any `LOG_LEVEL`.
+- **New `deployment.environment` on every line**, from the new env `DEPLOYMENT_ENVIRONMENT`; unset or empty leaves the
+  field out, so it stays absent until the zones set the variable.
+
+### Added
+- **Never-log test** (`NeverLogSpec`): fails the build on a log call with a bare value, `toString`, `getMessage` without
+  the exception, or a name like `email`, `iban`, `password`, `token`, `sub`. An exception needs an entry with a reason.
+
 ## [1.2.1] – 2026-11-02
 
 ### Security
