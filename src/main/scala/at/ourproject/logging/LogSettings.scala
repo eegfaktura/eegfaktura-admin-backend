@@ -1,8 +1,10 @@
 package at.ourproject.logging
 
+import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.core.PropertyDefinerBase
 import com.typesafe.config.{Config, ConfigFactory}
 import org.slf4j.bridge.SLF4JBridgeHandler
+import org.slf4j.{Logger, LoggerFactory}
 
 // The one logging setup of the service (eegfaktura-dev logging concept W-261008-ca2): every line goes through
 // logback.xml and the EcsEncoder there - the application's SLF4J loggers and Pekko's (Slf4jLogger, see `pekkoLogging`).
@@ -14,6 +16,7 @@ import org.slf4j.bridge.SLF4JBridgeHandler
 //                  and tokens). Its raw traffic (org.apache.http.wire, .headers) stays off in any case.
 //   LOG_FORMAT     json | text (default json, also from source; text for a readable line locally)
 //   SERVICE_VERSION  set by the image build, otherwise `dev`
+//   DEPLOYMENT_ENVIRONMENT  `deployment.environment` on every line (local, dev, pilot, prod); unset: no field
 //
 // An empty value is the same as an unset one (the default applies). An unknown level or format stops the start
 // (`validate`), logback alone would fall back to DEBUG.
@@ -45,6 +48,19 @@ object LogSettings {
   /** The level logback.xml uses for an environment variable, with another one (or `default`) as fallback. */
   def levelOf(env: Map[String, String], variable: String, fallback: Option[String], default: String = "INFO"): String =
     valueOf(env, variable).orElse(fallback.flatMap(valueOf(env, _))).flatMap(parseLevel).getOrElse(default)
+
+  /**
+   * The start-up line: service.version as on every line, and the levels in effect, as logback has them. Its logger is
+   * fixed at info in logback.xml, so LOG_LEVEL=warn does not switch it off.
+   */
+  def logStart(context: LoggerContext = LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext]): Unit = {
+    def level(logger: String) = EcsEncoder.levelName(context.getLogger(logger).getEffectiveLevel)
+    context.getLogger("at.ourproject.start").atInfo()
+      .addKeyValue("event.action", "service.start")
+      .addKeyValue("log.effective_level", level(Logger.ROOT_LOGGER_NAME))
+      .addKeyValue("log.effective_level_app", level("at.ourproject"))
+      .log("service start")
+  }
 
   /**
    * java.util.logging (gRPC, pgjdbc, ...) goes through SLF4J and the EcsEncoder instead of plain text on stderr. Its

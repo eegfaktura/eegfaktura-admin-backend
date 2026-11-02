@@ -39,6 +39,21 @@ class EcsEncoderSpec extends AnyWordSpec with Matchers {
     new ObjectMapper().readTree(l)
   }
 
+  "deployment.environment" should {
+    "be on the line when it is set" in {
+      val enc = encoder("json")
+      enc.setDeploymentEnvironment(" pilot ")
+      enc.fieldsOf(event(Level.INFO, "started")).toMap.get("deployment.environment") shouldBe Some("pilot")
+    }
+
+    "be left out when it is unset or empty" in {
+      val enc = encoder("json")
+      enc.fieldsOf(event(Level.INFO, "started")).toMap should not contain key("deployment.environment")
+      enc.setDeploymentEnvironment("")
+      enc.fieldsOf(event(Level.INFO, "started")).toMap should not contain key("deployment.environment")
+    }
+  }
+
   "the json format" should {
     "write one object with the ECS fields" in {
       val j = json(event(Level.INFO, "started"))

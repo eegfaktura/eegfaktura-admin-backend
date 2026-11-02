@@ -22,6 +22,7 @@ object Registration extends App {
     sys.exit(2)
   }
   LogSettings.bridgeJavaUtilLogging()
+  LogSettings.logStart()
 
   implicit val log: Logger = LoggerFactory.getLogger(getClass)
   private val keycloakConfig = KeycloakConfig.keycloakAdminConfig

@@ -21,11 +21,14 @@ class EcsEncoder extends EncoderBase[ILoggingEvent] {
 
   private var format = "json"
   private var serviceVersion = "dev"
+  private var deploymentEnvironment: Option[String] = None
   private val json = new JsonFactory()
 
   /** `text` or `json`; unset, empty and unknown are json (an unknown value is refused at the start before). */
   def setFormat(f: String): Unit = format = Option(f).flatMap(LogSettings.parseFormat).getOrElse("json")
   def setServiceVersion(v: String): Unit = serviceVersion = Option(v).map(_.trim).filter(_.nonEmpty).getOrElse("dev")
+  /** Unset and empty: the field is not written. */
+  def setDeploymentEnvironment(v: String): Unit = deploymentEnvironment = Option(v).map(_.trim).filter(_.nonEmpty)
 
   override def headerBytes(): Array[Byte] = null
   override def footerBytes(): Array[Byte] = null
@@ -50,7 +53,8 @@ class EcsEncoder extends EncoderBase[ILoggingEvent] {
       "log.logger" -> event.getLoggerName,
       "service.name" -> LogSettings.ServiceName,
       "service.version" -> serviceVersion,
-    ) ++ Fields.flatMap(f => present.get(f).filter(_ != null).map(f -> _)) ++
+    ) ++ deploymentEnvironment.map("deployment.environment" -> _) ++
+      Fields.flatMap(f => present.get(f).filter(_ != null).map(f -> _)) ++
       Seq("message" -> event.getFormattedMessage) ++ error.filter(_._2 != null)
   }
 
@@ -81,7 +85,8 @@ object EcsEncoder {
   val Fields: Seq[String] = Seq(
     "event.action", "event.outcome", "event.duration",
     "http.request.method", "http.route", "http.response.status_code",
-    "request.id", "trace.id", "span.id", "tenant.id", "client.id")
+    "request.id", "trace.id", "span.id", "tenant.id", "client.id",
+    "log.effective_level", "log.effective_level_app")
 
   private val Timestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
   private val TextHead = Set("@timestamp", "log.level", "log.logger", "message", "service.name", "service.version", "error.stack_trace")
