@@ -422,7 +422,8 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       val service = testKit.spawn(RegisterService(throwingKeycloak))
       val probe = testKit.createTestProbe[Command]()
 
-      LoggingTestKit.error[RuntimeException].expect {
+      // the message, because error lines of other tests carry their RuntimeException too
+      LoggingTestKit.error[RuntimeException].withMessageContains("unexpected").expect {
         service ! AddTenantToUser("TE100002", "user@test.local", probe.ref)
       }(testKit.system)
       probe.expectNoMessage(500.millis)
