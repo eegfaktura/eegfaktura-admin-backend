@@ -15,7 +15,7 @@ import at.ourproject.services.AdminService
 import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import io.circe.{Decoder, Encoder}
-import org.slf4j.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -41,7 +41,7 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
 
   import at.ourproject.json.JsonFormater._
 
-  val log: Logger = system.log
+  val log: Logger = LoggerFactory.getLogger(getClass)
 
   private val adminRoutes = concat(
     pathPrefix("admin") {
@@ -57,8 +57,8 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
                 onSuccess(processFuture) {
                   case AdminService.MessageUpdateOk =>
                     complete(daos.meteringRepository.getMeteringPoint(updateMsg.tenant, updateMsg.participantId.getOrElse(""), updateMsg.meteringPoint.getOrElse("")))
-                  case AdminService.MessageUpdateFail(_, e) =>
-                    log.error(e)
+                  case AdminService.MessageUpdateFail(_, reason, cause) =>
+                    log.error("Message Update Failed - {}", reason, cause.orNull)
                     complete(StatusCodes.BadRequest)
                 }
               }
@@ -75,8 +75,8 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
                 onSuccess(processFuture) {
                   case AdminService.MessageUpdateOk =>
                     complete(daos.participantRepository.getById(updateMsg.participantId.getOrElse("")))
-                  case AdminService.MessageUpdateFail(_, e) =>
-                    log.error(s"Message Update Failed - $e")
+                  case AdminService.MessageUpdateFail(_, reason, cause) =>
+                    log.error("Message Update Failed - {}", reason, cause.orNull)
                     complete(StatusCodes.BadRequest)
                 }
               }
@@ -93,8 +93,8 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
                 onSuccess(processFuture) {
                   case AdminService.MessageUpdateOk =>
                     complete(daos.eegRepository.getByTenant(updateMsg.tenant))
-                  case AdminService.MessageUpdateFail(_, e) =>
-                    log.error(s"Message Update Failed - ${e}")
+                  case AdminService.MessageUpdateFail(_, reason, cause) =>
+                    log.error("Message Update Failed - {}", reason, cause.orNull)
                     complete(StatusCodes.BadRequest)
                 }
               }

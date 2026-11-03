@@ -1,10 +1,9 @@
 package at.ourproject.logging
 
-import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, HealthRoutes, RegistrationRoutes}
+import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, HealthRoutes, KeycloakJwtAuthenticator, RegistrationRoutes}
 import at.ourproject.services.{AdminService, RegisterService}
+import at.ourproject.testsupport.LogCapture
 import ch.qos.logback.classic.spi.ILoggingEvent
-import ch.qos.logback.classic.{Logger => LogbackLogger}
-import ch.qos.logback.core.read.ListAppender
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.typesafe.config.ConfigFactory
 import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
@@ -19,9 +18,9 @@ import org.apache.pekko.http.scaladsl.settings.ServerSettings
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import org.slf4j.LoggerFactory
 
 import java.nio.charset.StandardCharsets
+import java.util.Base64
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.jdk.CollectionConverters._
@@ -33,18 +32,9 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
   private implicit val system: ActorSystem[Nothing] = testKit.system
   private implicit val ec: ExecutionContext = system.executionContext
 
-  private val appender = new ListAppender[ILoggingEvent]
-  private val accessLogger = LoggerFactory.getLogger("at.ourproject.access").asInstanceOf[LogbackLogger]
+  private val AccessLogger = "at.ourproject.access"
 
-  override def beforeAll(): Unit = {
-    appender.start()
-    accessLogger.addAppender(appender)
-  }
-
-  override def afterAll(): Unit = {
-    accessLogger.detachAppender(appender)
-    testKit.shutdownTestKit()
-  }
+  override def afterAll(): Unit = testKit.shutdownTestKit()
 
   private val Client = "at.ourproject.vfeeg.admin"
 
@@ -86,16 +76,19 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
   private def call(uri: String, headers: HttpHeader*): (HttpResponse, List[(String, JsonNode)]) =
     callAt(port, HttpRequest(uri = uri, headers = headers.toList))
 
-  private def callAt(port: Int, request: HttpRequest): (HttpResponse, List[(String, JsonNode)]) = {
-    appender.list.clear()
-    val response = Await.result(
+  private def callAt(port: Int, request: HttpRequest): (HttpResponse, List[(String, JsonNode)]) =
+    LogCapture(AccessLogger) { access =>
+      val response = send(port, request)
+      (response, encoded(access.events))
+    }
+
+  private def send(port: Int, request: HttpRequest): HttpResponse =
+    Await.result(
       Http().singleRequest(request.withUri(s"http://127.0.0.1:$port${request.uri}"))
         .flatMap(r => r.entity.discardBytes().future.map(_ => r)), 10.seconds)
-    (response, lines())
-  }
 
-  /** The access lines written since the last call, encoded as the image writes them. */
-  private def lines(): List[(String, JsonNode)] = appender.list.asScala.toList.map { e =>
+  /** The lines, encoded as the image writes them. */
+  private def encoded(events: List[ILoggingEvent]): List[(String, JsonNode)] = events.map { e =>
     val raw = new String(encoder.encode(e), StandardCharsets.UTF_8)
     raw -> new ObjectMapper().readTree(raw)
   }
@@ -124,6 +117,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       val (raw, j) = lines.head
       j.get("event.action").asText shouldBe "http.access"
       j.get("event.outcome").asText shouldBe "success"
+      j.get("log.level").asText shouldBe "info"
       j.get("http.request.method").asText shouldBe "GET"
       j.get("http.route").asText shouldBe "/eeg/accounts"
       j.get("http.response.status_code").asInt shouldBe 200
@@ -146,11 +140,19 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       assertNoPersonalData(lines.head._1)
     }
 
+    "carry a GEA tenant, and no tenant.id for a value outside the agreed shape" in {
+      val (_, gea) = call("/eeg/accounts?tenant=gc123456-001", Bearer("superuser"))
+      gea.head._2.get("tenant.id").asText shouldBe "GC123456-001"
+      val (_, other) = call("/eeg/accounts?tenant=te.st:1", Bearer("superuser"))
+      other.head._2.has("tenant.id") shouldBe false
+    }
+
     "mark a request without token as refused, without route, tenant or client" in {
       val (response, lines) = call("/vfeeg/participants?tenant=RC100200")
       response.status.intValue shouldBe 401
       val j = lines.head._2
       j.get("event.outcome").asText shouldBe "refused"
+      j.get("log.level").asText shouldBe "warn"
       j.get("http.response.status_code").asInt shouldBe 401
       Seq("http.route", "tenant.id", "client.id").foreach(f => j.has(f) shouldBe false)
       j.get("message").asText shouldBe "GET - 401"
@@ -160,6 +162,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       val (response, lines) = call("/vfeeg/eeg", Bearer("member"))
       response.status.intValue shouldBe 403
       lines.head._2.get("event.outcome").asText shouldBe "refused"
+      lines.head._2.get("log.level").asText shouldBe "warn"
       lines.head._2.get("client.id").asText shouldBe Client
       assertNoPersonalData(lines.head._1)
     }
@@ -170,6 +173,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       response.status.intValue shouldBe 404
       val j = lines.head._2
       j.get("event.outcome").asText shouldBe "failure"
+      j.get("log.level").asText shouldBe "info"
       j.has("http.route") shouldBe false
       j.get("request.id").asText should fullyMatch regex "[0-9a-f]{32}"
       response.headers.find(_.is("x-request-id")).map(_.value) shouldBe Some(j.get("request.id").asText)
@@ -200,22 +204,34 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       val slowPort = Await.result(Http().newServerAt("127.0.0.1", 0)
         .adaptSettings(_ => settings.withTimeouts(settings.timeouts.withRequestTimeout(300.millis)))
         .bind(AccessLog.accessLog(AccessLog.path("slow") { complete(late.future) })), 10.seconds).localAddress.getPort
-      val (response, timeoutLines) = callAt(slowPort, HttpRequest(uri = "/slow"))
-      response.status.intValue shouldBe 503
-      timeoutLines should have size 1
-      val j = timeoutLines.head._2
-      j.get("http.response.status_code").asInt shouldBe 503
-      j.get("event.outcome").asText shouldBe "failure"
-      j.get("http.route").asText shouldBe "/slow"
-      response.headers.find(_.is("x-request-id")).map(_.value) shouldBe Some(j.get("request.id").asText)
-      late.success("late")
-      Thread.sleep(300)
-      lines() should have size 1
+      LogCapture(AccessLogger) { access =>
+        val response = send(slowPort, HttpRequest(uri = "/slow"))
+        response.status.intValue shouldBe 503
+        val timeoutLines = encoded(access.events)
+        timeoutLines should have size 1
+        val j = timeoutLines.head._2
+        j.get("http.response.status_code").asInt shouldBe 503
+        j.get("event.outcome").asText shouldBe "failure"
+        j.get("http.route").asText shouldBe "/slow"
+        response.headers.find(_.is("x-request-id")).map(_.value) shouldBe Some(j.get("request.id").asText)
+        late.success("late")
+        Thread.sleep(300)
+        access.events should have size 1
+      }
     }
 
     "not be written for the health routes" in {
       call("/healthz")._2 shouldBe empty
       call("/readyz")._2 shouldBe empty
+    }
+  }
+
+  "tenantId" should {
+    "upper-case independently of the JVM's locale" in {
+      val previous = java.util.Locale.getDefault
+      java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr")) // i -> İ in Turkish
+      try AccessLog.tenantId("gi123456-001") shouldBe Some("GI123456-001")
+      finally java.util.Locale.setDefault(previous)
     }
   }
 
@@ -227,6 +243,93 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       AccessLog.traceIds(s"00-$Trace-${"0" * 16}-01") shouldBe None
       AccessLog.traceIds(s"00-$Trace-$Span-01-more") shouldBe None
       AccessLog.traceIds(s"00-${Trace.toUpperCase}-$Span-01") shouldBe None
+    }
+  }
+
+  /** The fields of the lines with this message text, as the image writes them. */
+  private def lines(all: LogCapture, message: String): List[Map[String, Any]] =
+    all.events.filter(_.getFormattedMessage.contains(message)).map(encoder.fieldsOf(_).toMap)
+
+  private val requestUser = AuthenticatedUser("4711", None,
+    Map("realm_access" -> Map[String, Any]("roles" -> List("superuser").asJava).asJava))
+  private val anyToken: Credentials => Future[Option[AuthenticatedUser]] = _ => Future.successful(Some(requestUser))
+
+  private val messageFields = Promise[Map[String, String]]()
+  private val requestNode = testKit.spawn(Behaviors.receiveMessage[RegisterService.Command] {
+    case m @ RegisterService.PontonRegister(_, _, _, replyTo) =>
+      messageFields.trySuccess(m.logFields)
+      replyTo ! RegisterService.PontonRegisterResponse(200, "")
+      Behaviors.same
+    case _ => Behaviors.same
+  })
+
+  private val failingAdmin = testKit.spawn(Behaviors.receiveMessage[AdminService.Command] {
+    case AdminService.MessageUpdate(_, replyTo) =>
+      replyTo ! AdminService.MessageUpdateFail(500, "backend down", Some(new IllegalStateException("backend down")))
+      Behaviors.same
+    case _ => Behaviors.same
+  })
+
+  private lazy val requestPort = {
+    val routes = AccessLog.accessLog(
+      new RegistrationRoutes(anyToken, requestNode).route ~
+        new AdminRoutes(null, anyToken, failingAdmin).route ~
+        path("boom") { AccessLog.tenant("rc100200") { complete(Future.failed[String](new IllegalStateException("kaboom"))) } })
+    Await.result(Http().newServerAt("127.0.0.1", 0).bind(routes), 10.seconds).localAddress.getPort
+  }
+
+  private def callRequest(request: HttpRequest, requestId: String): HttpResponse =
+    Await.result(Http().singleRequest(request
+      .withUri(s"http://127.0.0.1:$requestPort${request.uri}")
+      .addHeader(RawHeader("X-Request-Id", requestId))
+      .addHeader(Authorization(OAuth2BearerToken("token"))))
+      .flatMap(r => r.entity.discardBytes().future.map(_ => r)), 10.seconds)
+
+  private def post(uri: String, json: String) =
+    HttpRequest(HttpMethods.POST, uri, entity = HttpEntity(ContentTypes.`application/json`, json))
+
+  "the lines of a request" should {
+    "carry request id, tenant and the exception on the route's error line after an actor's answer" in LogCapture("ROOT") { all =>
+      val response = callRequest(post("/admin/master/update",
+        """{"updateClass":"EEG","tenant":"rc100200","participantId":null,"meteringPoint":null,"value":{}}"""), "req-admin")
+      response.status.intValue shouldBe 400
+      val line = lines(all, "Message Update Failed").find(_.get("request.id").contains("req-admin"))
+      line should not be empty
+      line.get("tenant.id") shouldBe "RC100200"
+      line.get("log.level") shouldBe "error"
+      line.get("log.logger") shouldBe "at.ourproject.routes.AdminRoutes" // follows LOG_LEVEL_APP
+      line.get("error.type") shouldBe "java.lang.IllegalStateException"
+    }
+
+    "reach an actor with the message, also when the tenant comes from a body decoded on another thread" in {
+      callRequest(post("/eeg/ponton",
+        """{"tenant":"rc100300","rcNumber":"rc100300","pontonInfo":{"username":"u","password":"p","domain":"d","pontonCommType":"KEP"}}"""),
+        "req-ponton").status.intValue shouldBe 200
+      Await.result(messageFields.future, 10.seconds) shouldBe Map("request.id" -> "req-ponton", "tenant.id" -> "RC100300")
+    }
+
+    "be on Pekko's error line of an exception in a route" in LogCapture("ROOT") { all =>
+      callRequest(HttpRequest(uri = "/boom"), "req-boom").status.intValue shouldBe 500
+      val line = lines(all, "kaboom").find(_.get("request.id").contains("req-boom"))
+      line should not be empty
+      line.get("tenant.id") shouldBe "RC100200"
+      line.get("log.level") shouldBe "error"
+      line.get("error.type") shouldBe "java.lang.IllegalStateException"
+    }
+
+    "be on the warn line of a refused token" in LogCapture("ROOT") { all =>
+      def part(json: String) = Base64.getUrlEncoder.withoutPadding.encodeToString(json.getBytes(StandardCharsets.UTF_8))
+      val token = s"""${part("""{"alg":"RS256","kid":"k1"}""")}.${part("""{"iss":"i"}""")}.${part("sig")}"""
+      val refusing = new KeycloakJwtAuthenticator("http://127.0.0.1:1/certs", "i", "a")
+      val route = AccessLog.accessLog(KeycloakJwtAuthenticator.authenticated(refusing.authenticate) { _ => complete("ok") })
+      val bound = Await.result(Http().newServerAt("127.0.0.1", 0).bind(route), 10.seconds).localAddress.getPort
+
+      val response = Await.result(Http().singleRequest(HttpRequest(uri = s"http://127.0.0.1:$bound/",
+        headers = List(RawHeader("X-Request-Id", "req-token"), Authorization(OAuth2BearerToken(token)))))
+        .flatMap(r => r.entity.discardBytes().future.map(_ => r)), 20.seconds)
+
+      response.status.intValue shouldBe 401
+      lines(all, "while validating token").flatMap(_.get("request.id")) should contain("req-token")
     }
   }
 }

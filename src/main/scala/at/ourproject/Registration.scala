@@ -21,6 +21,8 @@ object Registration extends App {
     System.err.println(s"Refusing to start: $reason")
     sys.exit(2)
   }
+  LogSettings.bridgeJavaUtilLogging()
+  LogSettings.logStart()
 
   implicit val log: Logger = LoggerFactory.getLogger(getClass)
   private val keycloakConfig = KeycloakConfig.keycloakAdminConfig
@@ -64,7 +66,7 @@ object Registration extends App {
     val healthRouter = new HealthRoutes(HealthRoutes.postgresPing(system.settings.config.getConfig("slick.pgsql.vfeeg.properties")))
     HttpServer.startHttpServer(AccessLog.accessLog(healthRouter.route ~ regRouter.route ~ eegRouter.route ~ adminRouter.route))
 
-    Registration.system.log.info("Registration Server started ...")
+    Registration.log.info("Registration Server started ...")
 
     Behaviors.empty
   }

@@ -5,8 +5,9 @@ import org.apache.pekko.http.scaladsl.model.{AttributeKey, HttpRequest, HttpResp
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.{Directive, Directive0, Directive1, PathMatcher0, Route, RouteResult}
 import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 
-import java.util.UUID
+import java.util.{Locale, UUID}
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.util.{Failure, Success}
 
@@ -26,6 +27,9 @@ object AccessLog {
     @volatile var route: Option[String] = None
     @volatile var tenant: Option[String] = None
     @volatile var client: Option[String] = None
+
+    /** The fields every line of the request carries (`LogContext`). */
+    def logFields: Map[String, String] = Map(LogContext.RequestId -> requestId) ++ tenant.map(LogContext.TenantId -> _)
   }
 
   val ContextKey: AttributeKey[Context] = AttributeKey[Context]("access-log-context")
@@ -33,10 +37,14 @@ object AccessLog {
 
   private val SkippedPaths = Set("/healthz", "/readyz")
   private val Token = "[A-Za-z0-9._:-]{1,128}".r
+  private val ValidTenant = "[A-Z0-9][A-Z0-9_-]{0,63}".r
   private val Traceparent = "([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}(-.*)?".r
 
-  /** A plain token (request id, client id, tenant) or None; anything else is not written. */
+  /** A plain token (request id, client id) or None; anything else is not written. */
   def plainToken(value: String): Option[String] = Option(value).map(_.trim).filter(Token.matches)
+
+  /** tenant.id: upper case, in the shape agreed for all services (RC100200, GEA GC123456-001), or not written. */
+  def tenantId(value: String): Option[String] = Option(value).map(_.trim.toUpperCase(Locale.ROOT)).filter(ValidTenant.matches)
 
   /** trace.id and span.id of a W3C traceparent; version ff and all-zero ids are invalid. */
   def traceIds(value: String): Option[(String, String)] = Option(value).map(_.trim).collect {
@@ -84,7 +92,10 @@ object AccessLog {
           writeOnce(TimeoutResponse.status.intValue)
           TimeoutResponse.addHeader(idHeader)
         })
-        sealedRoute(rc.withRequest(request.addAttribute(ContextKey, ctx))).transform { result =>
+        val requestContext = rc.withRequest(request.addAttribute(ContextKey, ctx))
+          .withExecutionContext(LogContext.on(rc.executionContext)(() => ctx.logFields))
+          .withLog(LogContext.RouteLog)
+        LogContext.scoped(ctx.logFields)(sealedRoute(requestContext)).transform { result =>
           val status = result match {
             case Success(RouteResult.Complete(response)) => response.status.intValue
             case Success(RouteResult.Rejected(_)) => 404 // not reached: the route is sealed
@@ -101,29 +112,34 @@ object AccessLog {
   }
 
   private def write(method: String, status: Int, durationNanos: Long, ctx: Context): Unit = {
-    val line = log.atInfo()
+    val result = outcome(status)
+    // a refused request (401, 403) is warn, as in eda-xp; the logger is fixed at info, so both are written
+    val line = log.atLevel(if (result == "refused") Level.WARN else Level.INFO)
       .addKeyValue("event.action", "http.access")
-      .addKeyValue("event.outcome", outcome(status))
+      .addKeyValue("event.outcome", result)
       .addKeyValue("event.duration", java.lang.Long.valueOf(durationNanos))
       .addKeyValue("http.request.method", method)
       .addKeyValue("http.response.status_code", Integer.valueOf(status))
-      .addKeyValue("request.id", ctx.requestId)
+      .addKeyValue(LogContext.RequestId, ctx.requestId)
     ctx.route.foreach(line.addKeyValue("http.route", _))
     ctx.traceId.foreach(line.addKeyValue("trace.id", _))
     ctx.spanId.foreach(line.addKeyValue("span.id", _))
-    ctx.tenant.foreach(line.addKeyValue("tenant.id", _))
+    ctx.tenant.foreach(line.addKeyValue(LogContext.TenantId, _))
     ctx.client.foreach(line.addKeyValue("client.id", _))
     line.log(s"$method ${ctx.route.getOrElse("-")} $status")
   }
 
   private def update(f: Context => Unit): Directive0 =
-    optionalAttribute(ContextKey).flatMap { ctx => ctx.foreach(f); pass }
+    optionalAttribute(ContextKey).flatMap { ctx =>
+      ctx.foreach { c => f(c); LogContext.put(c.logFields) }
+      pass
+    }
 
   /** Sets the client of the access line (the token's azp). */
   def client(azp: Option[String]): Directive0 = update(_.client = azp.flatMap(plainToken))
 
   /** Sets the tenant the route acts on (upper case, as the services use it). */
-  def tenant(tenant: String): Directive0 = update(_.tenant = plainToken(tenant).map(_.toUpperCase))
+  def tenant(tenant: String): Directive0 = update(_.tenant = tenantId(tenant))
 
   /** `directive`, setting the tenant its value names. */
   def withTenant[T](directive: Directive1[T])(tenantOf: T => String): Directive1[T] =

@@ -2,6 +2,9 @@ package at.ourproject.logging
 
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.ConsoleAppender
+import ch.qos.logback.core.read.ListAppender
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -25,6 +28,43 @@ class LogbackConfigSpec extends AnyWordSpec with Matchers {
     "write its info lines at LOG_LEVEL=warn and LOG_LEVEL_APP=error" in withConfig("LOG_LEVEL" -> "warn", "LOG_LEVEL_APP" -> "error") { ctx =>
       ctx.getLogger("at.ourproject").isWarnEnabled shouldBe false // the application loggers follow LOG_LEVEL_APP
       ctx.getLogger("at.ourproject.access").isInfoEnabled shouldBe true
+    }
+  }
+
+  "the start-up line" should {
+    def startLine(ctx: LoggerContext): Map[String, Any] = {
+      ctx.setMDCAdapter(org.slf4j.MDC.getMDCAdapter) // a fresh context has none
+      val appender = new ListAppender[ILoggingEvent]
+      appender.setContext(ctx)
+      appender.start()
+      ctx.getLogger("at.ourproject.start").addAppender(appender)
+      ctx.getLogger("at.ourproject.start").setAdditive(false)
+      LogSettings.logStart(ctx)
+      appender.list should have size 1
+      val console = ctx.getLogger("ROOT").getAppender("CONSOLE").asInstanceOf[ConsoleAppender[ILoggingEvent]]
+      console.getEncoder.asInstanceOf[EcsEncoder].fieldsOf(appender.list.get(0)).toMap
+    }
+
+    "name version, environment and the level in effect, also at LOG_LEVEL=warn" in withConfig(
+      "LOG_LEVEL" -> "warn", "LOG_LEVEL_APP" -> "error", "SERVICE_VERSION" -> "sha-1234567", "DEPLOYMENT_ENVIRONMENT" -> "pilot") { ctx =>
+      val line = startLine(ctx)
+      line("message") shouldBe "service start"
+      line("event.action") shouldBe "service.start"
+      line("service.version") shouldBe "sha-1234567"
+      line("deployment.environment") shouldBe "pilot"
+      line("log.effective_level") shouldBe "warn"
+      line should not contain key("log.effective_level_app") // one plain level, as in all services
+      line("log.level") shouldBe "info"
+    }
+
+    "leave the environment out when it is unset" in withConfig() { ctx =>
+      val line = startLine(ctx)
+      line should not contain key("deployment.environment")
+      line("log.effective_level") shouldBe "info"
+    }
+
+    "read LOG_LEVEL=warning as warn" in withConfig("LOG_LEVEL" -> "warning") { ctx =>
+      startLine(ctx)("log.effective_level") shouldBe "warn"
     }
   }
 

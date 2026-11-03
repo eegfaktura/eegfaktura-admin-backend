@@ -34,7 +34,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       val userResources = users.searchByEmail(email, true)
       userResources.get(0)
     } catch {
-      case e: Exception => throw new RuntimeException(s"No valid user found: ${e.getMessage}")
+      case e: Exception => throw new RuntimeException(s"No valid user found: ${e.getMessage}", e)
     }
   }
 
@@ -89,7 +89,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
         } else response
       }
       val response = create(candidates)
-      log.info(s"CREATE USER RESPONSE: ${response.getStatus.toString}")
+      log.info(s"CREATE USER RESPONSE: ${response.getStatus}")
       val userId = CreatedResponseUtil.getCreatedId(response)
 
       // Set password for User
@@ -105,7 +105,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       val userResource = users.get(userId)
       // Set password credential
       userResource.resetPassword(passwordCred)
-      if (givenPassword.isEmpty) sendUpdatePasswordMail(userResource, userId)
+      if (givenPassword.isEmpty) sendUpdatePasswordMail(userResource)
 
       log.info("Apply user groups ...")
       // Join groups to user
@@ -120,7 +120,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
 //      users.get(userId).executeActionsEmail(List("UPDATE_PASSWORD", "VERIFY_EMAIL").asJava)
 
     } catch {
-      case e: Exception => throw new RuntimeException(s"Cannot create User: ${e.getMessage}")
+      case e: Exception => throw new RuntimeException(s"Cannot create User: ${e.getMessage}", e)
     }
   }
 
@@ -165,7 +165,7 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       if (userResource != null) {
         val user = userResource.toRepresentation
 
-        log.info(s"Configure Keycloak-User: $userId")
+        log.info(s"Configure Keycloak-User for tenant ${tenant.toUpperCase()}")
 
         // Users can change their own e-mail: an account with an unconfirmed address could have taken the address of
         // the person meant here and would get the community. Only a confirmed address is linked (platform#166).
@@ -213,17 +213,17 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
           val creds = userResource.credentials().asScala.toList
           if (creds.isEmpty) {
             addCredentials(userResource = userResource, password = KeycloakClient.randomPassword())
-            sendUpdatePasswordMail(userResource, userId)
+            sendUpdatePasswordMail(userResource)
           }
         } catch {
-          case e: Throwable => log.warn(s"Could not read credentials of user $userId, left unchanged: ${e.getMessage}")
+          case e: Throwable => log.warn("Could not read the credentials of the user, left unchanged", e)
         }
       }
     } catch {
       case e: IllegalStateException => throw e
       case e: Throwable =>
-        log.error(e.getMessage)
-        throw new RuntimeException(s"Cannot configure user: ${e.getMessage}")
+        log.error("Configuring the Keycloak user failed", e)
+        throw new RuntimeException(s"Cannot configure user: ${e.getMessage}", e)
     }
   }
 
@@ -268,11 +268,11 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
    * (e.g. no SMTP in the realm) is only logged: the operator then sets the
    * password in the Keycloak console.
    */
-  private def sendUpdatePasswordMail(userResource: UserResource, userId: String): Unit = {
+  private def sendUpdatePasswordMail(userResource: UserResource): Unit = {
     try {
       userResource.executeActionsEmail(List("UPDATE_PASSWORD").asJava)
     } catch {
-      case e: Throwable => log.warn(s"Could not send the set-password mail to user $userId: ${e.getMessage}")
+      case e: Throwable => log.warn("Could not send the set-password mail to the user", e)
     }
   }
 

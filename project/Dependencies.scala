@@ -38,6 +38,8 @@ object Dependencies {
   lazy val slf4j = "org.slf4j" % "slf4j-simple" % "2.0.17"
   lazy val scalaLogging = "com.typesafe.scala-logging" %% "scala-logging" % "3.9.5"
   lazy val logback = "ch.qos.logback" % "logback-classic" % "1.5.18"
+  // same version as the slf4j-api that logback brings; java.util.logging (gRPC, pgjdbc) through SLF4J
+  lazy val julToSlf4j = "org.slf4j" % "jul-to-slf4j" % "2.0.17"
   lazy val mockitoScala = "org.mockito" %% "mockito-scala" % mockitoScalaVersion
   lazy val mockitoScalaTest = "org.mockito" %% "mockito-scala-scalatest" % mockitoScalaVersion
   lazy val keycloakCore = "org.keycloak" % "keycloak-core" % keycloakVersion exclude("com.fasterxml.jackson.core", "jackson-databind")

@@ -74,7 +74,9 @@ class AdminServiceSpec extends AnyWordSpecLike with Matchers with BeforeAndAfter
       AdminStub.reply = () => Future.failed(new RuntimeException("backend down"))
 
       service ! MessageUpdate(update(UpdateClassEnum.EEG), probe.ref)
-      probe.expectMessageType[MessageUpdateFail](10.seconds).status shouldBe 500
+      val fail = probe.expectMessageType[MessageUpdateFail](10.seconds)
+      fail.status shouldBe 500
+      fail.cause shouldBe defined // the route's error line carries the exception
     }
   }
 }

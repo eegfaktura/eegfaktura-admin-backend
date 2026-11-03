@@ -3,6 +3,7 @@ package at.ourproject.services
 import at.energydash.admin.{RegisterPontonRequest, RegisterPontonService, RegisterPontonServiceHandler, RegisteredPontonReply}
 import at.ourproject.admin.{AdminEegService, AdminEegServiceHandler, UpdateEegReply, UpdateEegRequest}
 import at.ourproject.keycloak.KeycloakClient
+import at.ourproject.logging.LogContext
 import at.ourproject.register.{EegRequest, EegResponse, RegisterEegRequest, RegisterEegService, RegisterEegServiceHandler, RegisteredEegReply}
 import at.ourproject.services.RegisterService._
 import com.typesafe.config.ConfigFactory
@@ -73,6 +74,8 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
     testKit.shutdownTestKit()
     stubKit.shutdownTestKit()
   }
+
+  private val RequestFields = Map("request.id" -> "req-1", "tenant.id" -> "TE100002")
 
   private def keycloak(addTenant: () => Unit): KeycloakClient = new KeycloakClient(null, null) {
     override def getUserId(email: String): Try[String] = Success("user-id")
@@ -419,13 +422,65 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       val service = testKit.spawn(RegisterService(throwingKeycloak))
       val probe = testKit.createTestProbe[Command]()
 
-      LoggingTestKit.error[RuntimeException].expect {
+      // the message, because error lines of other tests carry their RuntimeException too
+      LoggingTestKit.error[RuntimeException].withMessageContains("unexpected").expect {
         service ! AddTenantToUser("TE100002", "user@test.local", probe.ref)
       }(testKit.system)
       probe.expectNoMessage(500.millis)
 
       service ! AddTenantToUser("TE100002", "user@test.local", probe.ref)
       probe.expectMessage(10.seconds, AddTenantToUserResponse(200))
+    }
+  }
+
+  "the error lines" should {
+    "carry the exception and no Keycloak user id" in {
+      val service = testKit.spawn(RegisterService(keycloak(() => throw new IllegalStateException("keycloak down"))))
+      val probe = testKit.createTestProbe[Command]()
+
+      LoggingTestKit.error[IllegalStateException]
+        .withMessageContains("Adding tenant TE100002")
+        .withCustom(event => !event.message.contains("user-id") && !event.message.contains("keycloak down"))
+        .expect {
+          service ! AddTenantToUser("TE100002", "user@test.local", probe.ref)
+        }(testKit.system)
+      probe.expectMessage(10.seconds, AddTenantToUserResponse(500))
+    }
+
+    "carry the exception of a failed Keycloak step of a registration" in {
+      val failing = new KeycloakClient(null, null) {
+        override def checkUserAlreadyExist(email: String): Boolean = throw new IllegalStateException("keycloak down")
+      }
+      val service = testKit.spawn(RegisterService(failing))
+      val probe = testKit.createTestProbe[Command]()
+
+      LoggingTestKit.error[IllegalStateException]
+        .withMessageContains("Creating/Updating Keycloak User failed")
+        .expect {
+          service ! RegisterEeg(eeg(online = false, PontonCommType.NONE), Nil, probe.ref)
+        }(testKit.system)
+      probe.expectMessageType[EegRegisterError](10.seconds).code shouldBe 510
+    }
+
+    "keep the fields of the request the message was created in, in the actor" in {
+      val service = testKit.spawn(RegisterService(keycloak(() => throw new IllegalStateException("keycloak down"))))
+      val probe = testKit.createTestProbe[Command]()
+
+      LoggingTestKit.error[IllegalStateException].withMdc(RequestFields).expect {
+        service ! LogContext.scoped(RequestFields)(AddTenantToUser("TE100002", "user@test.local", probe.ref))
+      }(testKit.system)
+    }
+
+    "keep the fields of the request in the callback of a registration" in {
+      val failing = new KeycloakClient(null, null) {
+        override def checkUserAlreadyExist(email: String): Boolean = throw new IllegalStateException("keycloak down")
+      }
+      val service = testKit.spawn(RegisterService(failing))
+      val probe = testKit.createTestProbe[Command]()
+
+      LoggingTestKit.error[IllegalStateException].withMdc(RequestFields).expect {
+        service ! LogContext.scoped(RequestFields)(RegisterEeg(eeg(online = false, PontonCommType.NONE), Nil, probe.ref))
+      }(testKit.system)
     }
   }
 }

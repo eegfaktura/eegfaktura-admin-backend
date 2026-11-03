@@ -35,7 +35,7 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
         keycloakCore, keycloakAdminClient,
         sttpClient3,
-        /*slf4j,*/ scalaLogging, logback,
+        /*slf4j,*/ scalaLogging, logback, julToSlf4j,
         akka, akkaStream, akkaHttp, pekkoSlf4j, pekkoDiscovery,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
         slick, slickHikaricp, postgresLib, nimbusdsJwt,
@@ -45,6 +45,11 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       scalaTest, streamTestkit, akkaTestkit,
     ).map(_ % Test),
+
+    // One forked JVM, suites one after another (as eda-xp): the log tests attach appenders to the one logback context
+    // and install the java.util.logging bridge, which must meet neither another suite nor sbt's own logging.
+    Test / fork := true,
+    Test / parallelExecution := false,
 
     // Force exact versions (platform#183): they stop another dependency from pulling these families
     // up past the declared versions, but they also silently DOWNGRADE when a future bump brings a

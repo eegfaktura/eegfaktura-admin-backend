@@ -63,7 +63,7 @@ class HealthRoutes(dbCheck: () => Future[Any], timeout: FiniteDuration = 2.secon
         lastState = "saturated"
         Success(true)
       case Failure(ex) =>
-        if (lastState != "down") log.warn(s"readyz: database check failed: ${ex.getClass.getSimpleName}: ${ex.getMessage}")
+        if (lastState != "down") log.warn("readyz: database check failed", ex)
         lastState = "down"
         Success(false)
     }
@@ -117,7 +117,7 @@ object HealthRoutes {
         // the application's Slick pool stays the authority on its properties; the ping skips a key it cannot use
         case name =>
           try ds.setProperty(name, value)
-          catch { case ex: SQLException => log.warn(s"readyz: ping ignores the connection property $name: ${ex.getMessage}") }
+          catch { case ex: SQLException => log.warn(s"readyz: ping ignores the connection property $name", ex) }
       }
     }
     ds.setConnectTimeout(2)

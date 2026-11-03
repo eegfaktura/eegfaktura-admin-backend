@@ -8,6 +8,41 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+### Changed
+Log output only (eegfaktura-dev#45); routes, answers and stored data are unchanged.
+- **The Keycloak user id (`sub`) is gone from the log lines**, at every level: it conflicts with "no user tracking". The
+  lines name the tenant where they need a subject.
+- **`request.id` and `tenant.id` are on all lines of an HTTP request**, not only the access line: route, `RegisterService`
+  actor, Keycloak client, token check and Pekko's line for an exception in a route. `tenant.id` follows once the route
+  knows the tenant. Not on: lines of libraries on their own threads and the health routes, which have no access line.
+- **`tenant.id` follows the rule of all services**, also on the access line: `^[A-Z0-9][A-Z0-9_-]{0,63}$` after
+  upper-casing (GEA `GC123456-001` included; upper-cased independently of the JVM's locale), otherwise the field is
+  left out. Before, `.` and `:` and up to 128 characters passed.
+- **Error lines carry the exception** (`error.type`, `error.message`, `error.stack_trace`) instead of its message as
+  text, and so do the warn lines of the Keycloak client and of `/readyz`. The message text of these lines changed. A
+  refused token stays a warn line without a stack. The line for an exception in a route now has the logger
+  `at.ourproject.http`, which follows `LOG_LEVEL_APP`.
+- **The lines of the admin routes and of the HTTP server start have their class as logger** (`at.ourproject.routes.AdminRoutes`,
+  `at.ourproject.HttpServer$`, `at.ourproject.Registration$`) instead of `org.apache.pekko.actor.typed.ActorSystem`, so
+  they follow `LOG_LEVEL_APP`.
+- **`java.util.logging` goes through SLF4J** (gRPC, pgjdbc, ...), so these lines are JSON on stdout instead of plain text
+  on stderr. New dependency `org.slf4j:jul-to-slf4j` 2.0.17 (MIT), the version of the `slf4j-api` in use. Their levels
+  stay at `INFO` and do not follow `LOG_LEVEL=debug`: gRPC's debug lines dump the frames.
+- **New start-up line** `service start` (`event.action=service.start`) with `service.version` and the root level in
+  effect (`log.effective_level`), written at any `LOG_LEVEL`.
+- **The access line of a refused request (401, 403) is `warn`**, as in eda-xp; all other access lines stay `info`.
+- **New `deployment.environment` on every line**, from the new env `DEPLOYMENT_ENVIRONMENT`; unset or empty leaves the
+  field out, so it stays absent until the zones set the variable.
+
+### Added
+- **Never-log test** (`NeverLogSpec`): fails the build on a log call with a bare value, `toString`, `getMessage` without
+  the exception, or a word of the list all services share (`email`, `iban`, `password`, `token`, `sub`, ...): a whole
+  word of an identifier, also with a plural s, inside an all-lower-case identifier for words of five or more letters,
+  and in the text of a literal right before a placeholder. Numbers, booleans and exceptions are skipped by their
+  declared type. An exception needs an entry with a reason.
+- **Tests run in one forked JVM, one suite after another** (`Test / fork`, as eda-xp), so the log tests no longer share
+  logback and `java.util.logging` with sbt or another suite.
+
 ## [1.2.1] – 2026-11-02
 
 ### Security
