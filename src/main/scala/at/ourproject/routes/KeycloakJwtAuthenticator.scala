@@ -106,32 +106,4 @@ class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expected
     case _ =>
       Future.successful(None)
   }
-
-  // Helper: extract roles from standard Keycloak structure
-  def extractRoles(claims: JWTClaimsSet): Seq[String] = {
-    def asStringSeq(obj: Any): Seq[String] = obj match {
-      case l: java.util.List[_] => l.asScala.toSeq.map(_.toString)
-      case s: Seq[_]            => s.map(_.toString)
-      case _                    => Seq.empty
-    }
-
-    val realmRoles: Seq[String] = Option(claims.getClaim("realm_access")).flatMap {
-      case m: java.util.Map[_, _] =>
-        Option(m.asInstanceOf[java.util.Map[String, _]].get("roles")).map(asStringSeq)
-      case _ => None
-    }.getOrElse(Seq.empty)
-
-    val clientRoles: Seq[String] = Option(claims.getClaim("resource_access")).map {
-      case m: java.util.Map[_, _] =>
-        val resourceAccess = m.asInstanceOf[java.util.Map[String, _]]
-        resourceAccess.values().asScala.toSeq.flatMap {
-          case v: java.util.Map[_, _] =>
-            Option(v.asInstanceOf[java.util.Map[String, _]].get("roles")).map(asStringSeq).getOrElse(Seq.empty)
-          case _ => Seq.empty
-        }
-      case _ => Seq.empty
-    }.getOrElse(Seq.empty)
-
-    (realmRoles ++ clientRoles).distinct
-  }
 }
