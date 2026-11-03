@@ -102,8 +102,6 @@ object RegisterService {
   case class EegRegistered(code: Int, message: String, accounts: List[AccountResult] = Nil) extends ResponseCommand
   case class EegRegisterError(code: Int, message: String) extends ResponseCommand
 
-  private case class RegisterParticipant(tenant: String, firstname: String, lastname: String, email: String) extends Command
-
   case class AddTenantToUser(tenant: String, user: String, replyTo: ActorRef[Command]) extends Command
   case class AddTenantToUserResponse(status: Int) extends Command
 
@@ -183,20 +181,14 @@ object RegisterService {
   }
 
   def apply(keycloakClient: KeycloakClient): Behavior[Command] = {
-//    val dbConfig = Db.getConfig
-
     Behaviors.setup[Command] { context =>
       implicit def system: ActorSystem[Nothing] = context.system
 
       implicit def ec: ExecutionContext = system.executionContext
 
-      //      context.system.receptionist ! Receptionist.Register(NodeServiceKey, context.self)
-
       val adminClient = AdminEegServiceClient(GrpcClientSettings.fromConfig("register.RegisterEegService"))
       val eegClient = RegisterEegServiceClient(GrpcClientSettings.fromConfig("register.RegisterEegService"))
       val pontonClient = RegisterPontonServiceClient(GrpcClientSettings.fromConfig("register.RegisterPontonService"))
-
-//      val userRepo = new SlickTenantUserRepository(dbConfig)
 
       // This is the only RegisterService actor: an exception escaping a message
       // must not stop it. Resume keeps the behaviour and the gRPC clients; the
@@ -289,16 +281,6 @@ object RegisterService {
                 replyTo ! EegRegisterError(501, "Creating Tenant failed!")
             }(LogContext.inherited(ec))
           }
-
-          case _: RegisterParticipant =>
-
-//            userRepo.create(KeycloakUser(id = UUID.randomUUID(),
-//              tenant = tenant,
-//              username = None,
-//              firtsname = firstname,
-//              lastname = lastname,
-//              email = email,
-//              invitedAt = LocalDateTime.now(), createdAt = LocalDateTime.now, status = 0))
 
           case AddTenantToUser(tenant, email, replyTo) =>
             keycloakClient.getUserId(email) match {
