@@ -117,6 +117,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       val (raw, j) = lines.head
       j.get("event.action").asText shouldBe "http.access"
       j.get("event.outcome").asText shouldBe "success"
+      j.get("log.level").asText shouldBe "info"
       j.get("http.request.method").asText shouldBe "GET"
       j.get("http.route").asText shouldBe "/eeg/accounts"
       j.get("http.response.status_code").asInt shouldBe 200
@@ -151,6 +152,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       response.status.intValue shouldBe 401
       val j = lines.head._2
       j.get("event.outcome").asText shouldBe "refused"
+      j.get("log.level").asText shouldBe "warn"
       j.get("http.response.status_code").asInt shouldBe 401
       Seq("http.route", "tenant.id", "client.id").foreach(f => j.has(f) shouldBe false)
       j.get("message").asText shouldBe "GET - 401"
@@ -160,6 +162,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       val (response, lines) = call("/vfeeg/eeg", Bearer("member"))
       response.status.intValue shouldBe 403
       lines.head._2.get("event.outcome").asText shouldBe "refused"
+      lines.head._2.get("log.level").asText shouldBe "warn"
       lines.head._2.get("client.id").asText shouldBe Client
       assertNoPersonalData(lines.head._1)
     }
@@ -170,6 +173,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       response.status.intValue shouldBe 404
       val j = lines.head._2
       j.get("event.outcome").asText shouldBe "failure"
+      j.get("log.level").asText shouldBe "info"
       j.has("http.route") shouldBe false
       j.get("request.id").asText should fullyMatch regex "[0-9a-f]{32}"
       response.headers.find(_.is("x-request-id")).map(_.value) shouldBe Some(j.get("request.id").asText)

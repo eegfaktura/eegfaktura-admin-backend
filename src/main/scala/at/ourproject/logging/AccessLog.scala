@@ -5,6 +5,7 @@ import org.apache.pekko.http.scaladsl.model.{AttributeKey, HttpRequest, HttpResp
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.{Directive, Directive0, Directive1, PathMatcher0, Route, RouteResult}
 import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -111,9 +112,11 @@ object AccessLog {
   }
 
   private def write(method: String, status: Int, durationNanos: Long, ctx: Context): Unit = {
-    val line = log.atInfo()
+    val result = outcome(status)
+    // a refused request (401, 403) is warn, as in eda-xp; the logger is fixed at info, so both are written
+    val line = log.atLevel(if (result == "refused") Level.WARN else Level.INFO)
       .addKeyValue("event.action", "http.access")
-      .addKeyValue("event.outcome", outcome(status))
+      .addKeyValue("event.outcome", result)
       .addKeyValue("event.duration", java.lang.Long.valueOf(durationNanos))
       .addKeyValue("http.request.method", method)
       .addKeyValue("http.response.status_code", Integer.valueOf(status))

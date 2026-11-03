@@ -86,7 +86,7 @@ object EcsEncoder {
     "event.action", "event.outcome", "event.duration",
     "http.request.method", "http.route", "http.response.status_code",
     LogContext.RequestId, "trace.id", "span.id", LogContext.TenantId, "client.id",
-    "log.effective_level", "log.effective_level_app")
+    "log.effective_level")
 
   private val Timestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)
   private val TextHead = Set("@timestamp", "log.level", "log.logger", "message", "service.name", "service.version", "error.stack_trace")

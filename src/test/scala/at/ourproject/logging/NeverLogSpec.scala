@@ -20,6 +20,7 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
     Allowed("logging/AccessLog.scala", "method", "the HTTP method"),
     Allowed("logging/AccessLog.scala", "status", "the HTTP status, an Int"),
     Allowed("logging/AccessLog.scala", "durationNanos", "a Long"),
+    Allowed("logging/AccessLog.scala", "result", "the outcome: success, failure or refused"),
     Allowed("logging/LogContext.scala", "message", "the adapter behind RequestContext.log: Pekko's text, checked where Pekko writes it"),
     Allowed("routes/AdminRoutes.scala", "reason", "the backend's fixed refusal text or the message of the exception logged with it"),
     Allowed("routes/HealthRoutes.scala", "name", "name of a JDBC connection property, from the config"),

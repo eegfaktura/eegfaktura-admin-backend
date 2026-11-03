@@ -50,7 +50,7 @@ object LogSettings {
     valueOf(env, variable).orElse(fallback.flatMap(valueOf(env, _))).flatMap(parseLevel).getOrElse(default)
 
   /**
-   * The start-up line: service.version as on every line, and the levels in effect, as logback has them. Its logger is
+   * The start-up line: service.version as on every line, and the root level in effect, as logback has it. Its logger is
    * fixed at info in logback.xml, so LOG_LEVEL=warn does not switch it off.
    */
   def logStart(context: LoggerContext = LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext]): Unit = {
@@ -58,7 +58,6 @@ object LogSettings {
     context.getLogger("at.ourproject.start").atInfo()
       .addKeyValue("event.action", "service.start")
       .addKeyValue("log.effective_level", level(Logger.ROOT_LOGGER_NAME))
-      .addKeyValue("log.effective_level_app", level("at.ourproject"))
       .log("service start")
   }
 

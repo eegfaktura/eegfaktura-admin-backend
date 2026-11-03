@@ -25,8 +25,9 @@ Log output only (eegfaktura-dev#45); routes, answers and stored data are unchang
 - **`java.util.logging` goes through SLF4J** (gRPC, pgjdbc, ...), so these lines are JSON on stdout instead of plain text
   on stderr. New dependency `org.slf4j:jul-to-slf4j` 2.0.17 (MIT), the version of the `slf4j-api` in use. Their levels
   stay at `INFO` and do not follow `LOG_LEVEL=debug`: gRPC's debug lines dump the frames.
-- **New start-up line** `event.action=service.start` with `service.version` and the levels in effect
-  (`log.effective_level`, `log.effective_level_app`), written at any `LOG_LEVEL`.
+- **New start-up line** `service start` (`event.action=service.start`) with `service.version` and the root level in
+  effect (`log.effective_level`), written at any `LOG_LEVEL`.
+- **The access line of a refused request (401, 403) is `warn`**, as in eda-xp; all other access lines stay `info`.
 - **New `deployment.environment` on every line**, from the new env `DEPLOYMENT_ENVIRONMENT`; unset or empty leaves the
   field out, so it stays absent until the zones set the variable.
 

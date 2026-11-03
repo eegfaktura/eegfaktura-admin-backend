@@ -45,14 +45,15 @@ class LogbackConfigSpec extends AnyWordSpec with Matchers {
       console.getEncoder.asInstanceOf[EcsEncoder].fieldsOf(appender.list.get(0)).toMap
     }
 
-    "name version, environment and the levels in effect, also at LOG_LEVEL=warn" in withConfig(
+    "name version, environment and the level in effect, also at LOG_LEVEL=warn" in withConfig(
       "LOG_LEVEL" -> "warn", "LOG_LEVEL_APP" -> "error", "SERVICE_VERSION" -> "sha-1234567", "DEPLOYMENT_ENVIRONMENT" -> "pilot") { ctx =>
       val line = startLine(ctx)
+      line("message") shouldBe "service start"
       line("event.action") shouldBe "service.start"
       line("service.version") shouldBe "sha-1234567"
       line("deployment.environment") shouldBe "pilot"
       line("log.effective_level") shouldBe "warn"
-      line("log.effective_level_app") shouldBe "error"
+      line should not contain key("log.effective_level_app") // one plain level, as in all services
       line("log.level") shouldBe "info"
     }
 
@@ -60,6 +61,10 @@ class LogbackConfigSpec extends AnyWordSpec with Matchers {
       val line = startLine(ctx)
       line should not contain key("deployment.environment")
       line("log.effective_level") shouldBe "info"
+    }
+
+    "read LOG_LEVEL=warning as warn" in withConfig("LOG_LEVEL" -> "warning") { ctx =>
+      startLine(ctx)("log.effective_level") shouldBe "warn"
     }
   }
 
