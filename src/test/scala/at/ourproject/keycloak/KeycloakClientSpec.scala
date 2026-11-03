@@ -28,6 +28,39 @@ class KeycloakClientSpec extends AnyWordSpecLike with Matchers {
     }
   }
 
+  "ensureAccount" should {
+    // records what ensureAccount does instead of calling Keycloak
+    class Recording(search: String => java.util.List[UserRepresentation]) extends KeycloakClient(null, null) {
+      val calls = scala.collection.mutable.ListBuffer[String]()
+      override protected def searchUsersByEmail(email: String): java.util.List[UserRepresentation] = search(email)
+      override def createUser(user: KeycloakClient.User, rcNumber: String,
+                              userGroups: List[org.keycloak.representations.idm.GroupRepresentation]): Unit = calls += "create"
+      override def configureUser(userId: String, tenant: String, userInfo: at.ourproject.services.RegisterService.UserInfo,
+                                 userGroups: List[org.keycloak.representations.idm.GroupRepresentation]): Unit = calls += s"configure $userId"
+    }
+    val person = at.ourproject.services.RegisterService.AccountUser("Maria", "Muster", "a@test.local")
+
+    "create an account when no user has the e-mail" in {
+      val kc = new Recording(_ => java.util.List.of())
+      kc.ensureAccount("RC100001", person, Nil) shouldBe AccountStatus.created
+      kc.calls shouldBe List("create")
+    }
+
+    "link the existing account" in {
+      val user = new UserRepresentation()
+      user.setId("user-1")
+      val kc = new Recording(_ => java.util.List.of(user))
+      kc.ensureAccount("RC100001", person, Nil) shouldBe AccountStatus.linked
+      kc.calls shouldBe List("configure user-1")
+    }
+
+    "pass a Keycloak error on instead of creating a second account" in {
+      val kc = new Recording(_ => throw new jakarta.ws.rs.ProcessingException("keycloak down"))
+      a[jakarta.ws.rs.ProcessingException] should be thrownBy kc.ensureAccount("RC100001", person, Nil)
+      kc.calls shouldBe empty
+    }
+  }
+
   "buildUsername" should {
     "take 6 characters of the last name and 2 of the first name" in {
       client.buildUsername("Maria", "Mustermann") shouldBe "MusterMa"
