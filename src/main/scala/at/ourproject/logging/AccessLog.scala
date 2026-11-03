@@ -28,7 +28,7 @@ object AccessLog {
     @volatile var client: Option[String] = None
 
     /** The fields every line of the request carries (`LogContext`). */
-    def logFields: Map[String, String] = Map("request.id" -> requestId) ++ tenant.map("tenant.id" -> _)
+    def logFields: Map[String, String] = Map(LogContext.RequestId -> requestId) ++ tenant.map(LogContext.TenantId -> _)
   }
 
   val ContextKey: AttributeKey[Context] = AttributeKey[Context]("access-log-context")
@@ -117,11 +117,11 @@ object AccessLog {
       .addKeyValue("event.duration", java.lang.Long.valueOf(durationNanos))
       .addKeyValue("http.request.method", method)
       .addKeyValue("http.response.status_code", Integer.valueOf(status))
-      .addKeyValue("request.id", ctx.requestId)
+      .addKeyValue(LogContext.RequestId, ctx.requestId)
     ctx.route.foreach(line.addKeyValue("http.route", _))
     ctx.traceId.foreach(line.addKeyValue("trace.id", _))
     ctx.spanId.foreach(line.addKeyValue("span.id", _))
-    ctx.tenant.foreach(line.addKeyValue("tenant.id", _))
+    ctx.tenant.foreach(line.addKeyValue(LogContext.TenantId, _))
     ctx.client.foreach(line.addKeyValue("client.id", _))
     line.log(s"$method ${ctx.route.getOrElse("-")} $status")
   }

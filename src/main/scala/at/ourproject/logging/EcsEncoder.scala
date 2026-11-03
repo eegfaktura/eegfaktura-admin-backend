@@ -85,7 +85,7 @@ object EcsEncoder {
   val Fields: Seq[String] = Seq(
     "event.action", "event.outcome", "event.duration",
     "http.request.method", "http.route", "http.response.status_code",
-    "request.id", "trace.id", "span.id", "tenant.id", "client.id",
+    LogContext.RequestId, "trace.id", "span.id", LogContext.TenantId, "client.id",
     "log.effective_level", "log.effective_level_app")
 
   private val Timestamp = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC)

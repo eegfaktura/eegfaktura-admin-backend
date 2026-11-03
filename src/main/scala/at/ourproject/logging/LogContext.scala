@@ -13,7 +13,11 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
  */
 object LogContext {
 
-  private val Keys = Seq("request.id", "tenant.id")
+  /** The field names, the same on every line that carries them. */
+  val RequestId = "request.id"
+  val TenantId = "tenant.id"
+
+  private val Keys = Seq(RequestId, TenantId)
 
   /** The fields of the current thread. */
   def current: Map[String, String] = Keys.flatMap(k => Option(MDC.get(k)).map(k -> _)).toMap
