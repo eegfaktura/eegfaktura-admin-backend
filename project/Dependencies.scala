@@ -9,7 +9,6 @@ object Dependencies {
   private val mockitoScalaVersion = "1.17.14"
   private val monovoreDeclineVersion = "2.5.0"
   private val awsUtilsVersion = "0.1.92"
-  private val sttpClient3Version = "3.8.15"
   // Migration auf Apache Pekko 2026-06-13 (statt BSL-lizenziertem Akka).
   // Pekko 1.0.x = Apache-Fork von Akka 2.6.x. Pekko 1.2.x folgt Akka 2.7-API.
   // 1.2.1 ist die aelteste auf Maven Central verfuegbare 1.x-Version fuer
@@ -44,7 +43,6 @@ object Dependencies {
   lazy val mockitoScalaTest = "org.mockito" %% "mockito-scala-scalatest" % mockitoScalaVersion
   lazy val keycloakCore = "org.keycloak" % "keycloak-core" % keycloakVersion exclude("com.fasterxml.jackson.core", "jackson-databind")
   lazy val keycloakAdminClient = "org.keycloak" % "keycloak-admin-client" % keycloakVersion
-  lazy val sttpClient3 = "com.softwaremill.sttp.client3" %% "core" % sttpClient3Version
   lazy val akka = "org.apache.pekko" %% "pekko-actor-typed" % PekkoVersion
   lazy val akkaStream = "org.apache.pekko" %% "pekko-stream" % PekkoVersion
   lazy val akkaHttp = "org.apache.pekko" %% "pekko-http" % PekkoHttpVersion

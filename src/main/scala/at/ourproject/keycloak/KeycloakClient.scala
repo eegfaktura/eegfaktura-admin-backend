@@ -8,7 +8,6 @@ import org.keycloak.admin.client.resource.{RealmResource, UserResource, UsersRes
 import org.keycloak.admin.client.{CreatedResponseUtil, Keycloak, KeycloakBuilder}
 import org.keycloak.representations.idm.{CredentialRepresentation, GroupRepresentation, UserRepresentation}
 import org.slf4j.{Logger, LoggerFactory}
-import sttp.client3.{HttpURLConnectionBackend, Identity, SttpBackend}
 
 import scala.util.Try
 
@@ -305,8 +304,6 @@ object AccountStatus extends Enumeration {
 }
 
 object KeycloakClient {
-  implicit val backend: SttpBackend[Identity, Any] = HttpURLConnectionBackend()
-
   case class User(username: Option[String], firstName: String, lastName: String, email: String, password: Option[String])
 
   /** What the admin tool shows of an account: no id, no attributes. */
