@@ -249,7 +249,7 @@ class HealthRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfter
       val node = testKit.createTestProbe[RegisterService.Command]().ref
       new HealthRoutes(() => Future.successful(1)).route ~
         new RegistrationRoutes(authenticator, node).route ~
-        new EegRoutes(null, authenticator, node).route
+        new EegRoutes(null, authenticator).route
     }
 
     "still answer 401 to a GET without a token" in {

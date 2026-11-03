@@ -4,7 +4,7 @@ import at.ourproject.dao.SettlementIntervalType.SettlementIntervalType
 import slick.jdbc.JdbcBackend.Database
 import slick.jdbc.JdbcProfile
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 import io.circe.{Decoder, Encoder}
 
 object SettlementIntervalType extends Enumeration {
@@ -30,10 +30,10 @@ trait EegRepositoryComponent {
 }
 
 object EegRepository {
-  def apply(db: Db)(implicit ec: ExecutionContext) = new EegRepository(db.db, db.profile)
+  def apply(db: Db) = new EegRepository(db.db, db.profile)
 }
 
-class EegRepository(db: Database, p: JdbcProfile)(implicit ec: ExecutionContext) extends EegRepositoryComponent with EegTable with Profile {
+class EegRepository(db: Database, p: JdbcProfile) extends EegRepositoryComponent with EegTable with Profile {
 
   override val profile: JdbcProfile = p
   import profile.api._

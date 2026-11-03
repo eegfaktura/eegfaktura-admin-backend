@@ -3,7 +3,7 @@ package at.ourproject.dao
 import slick.jdbc.JdbcBackend.Database
 import slick.jdbc.JdbcProfile
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 case class EegMeteringPoint (tenant: String, meteringPoint: String, direction: String,
                              status: String, consentId: Option[String], participantId: String,
@@ -14,10 +14,10 @@ trait EegMeteringPointRepositoryComponent {
 }
 
 object MetersRepository {
-  def apply(db: Db)(implicit ec: ExecutionContext) = new MetersRepository(db.db, db.profile)
+  def apply(db: Db) = new MetersRepository(db.db, db.profile)
 }
 
-class MetersRepository(db: Database, p: JdbcProfile)(implicit ec: ExecutionContext) extends EegMeteringPointRepositoryComponent with MetersTable with Profile {
+class MetersRepository(db: Database, p: JdbcProfile) extends EegMeteringPointRepositoryComponent with MetersTable with Profile {
   override val profile: JdbcProfile = p
 
   import profile.api._

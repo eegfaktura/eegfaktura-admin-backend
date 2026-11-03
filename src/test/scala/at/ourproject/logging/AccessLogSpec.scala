@@ -65,7 +65,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
     val routes = AccessLog.accessLog(
       new HealthRoutes(() => Future.successful(1)).route ~
         new RegistrationRoutes(authenticator, node).route ~
-        new EegRoutes(null, authenticator, node).route ~
+        new EegRoutes(null, authenticator).route ~
         new AdminRoutes(null, authenticator, admin).route)
     Await.result(Http().newServerAt("127.0.0.1", 0).bind(routes), 10.seconds).localAddress.getPort
   }
