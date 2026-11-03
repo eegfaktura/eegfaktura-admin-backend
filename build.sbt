@@ -34,7 +34,7 @@ lazy val root = (project in file("."))
     // Pekko ist auf Maven Central, kein Lightbend-Resolver mehr noetig
     libraryDependencies ++= Seq(
         keycloakCore, keycloakAdminClient,
-        /*slf4j,*/ scalaLogging, logback, julToSlf4j,
+        logback, julToSlf4j,
         akka, akkaStream, akkaHttp, pekkoSlf4j, pekkoDiscovery,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
         slick, slickHikaricp, postgresLib, nimbusdsJwt,
