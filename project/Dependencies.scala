@@ -22,7 +22,7 @@ object Dependencies {
   lazy val akkaStream = "org.apache.pekko" %% "pekko-stream" % PekkoVersion
   lazy val akkaHttp = "org.apache.pekko" %% "pekko-http" % PekkoHttpVersion
   lazy val akkaHttpCirce = "com.github.pjfanning" %% "pekko-http-circe" % "3.1.0"
-  // pekko-slf4j wird via application.conf als logger geladen, deshalb explizit
+  // pekko-slf4j wird via LogSettings.pekkoLogging als logger geladen, deshalb explizit
   lazy val pekkoSlf4j = "org.apache.pekko" %% "pekko-slf4j" % PekkoVersion
   // pekko-discovery explizit auf PekkoVersion pinnen: pekko-grpc-sbt-plugin
   // 1.1.1 zieht transitiv pekko-discovery 1.1.2, was mit pekko 1.2.x als
