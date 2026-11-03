@@ -15,7 +15,7 @@ import at.ourproject.services.AdminService
 import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 import io.circe.{Decoder, Encoder}
-import org.slf4j.Logger
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -41,7 +41,7 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
 
   import at.ourproject.json.JsonFormater._
 
-  val log: Logger = system.log
+  val log: Logger = LoggerFactory.getLogger(getClass)
 
   private val adminRoutes = concat(
     pathPrefix("admin") {

@@ -3,11 +3,14 @@ package at.ourproject
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.server.Route
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.util.{Failure, Success}
 
 
 object HttpServer {
+
+  private val log: Logger = LoggerFactory.getLogger(getClass)
 
   def startHttpServer(routes: Route)(implicit system: ActorSystem[_]): Unit = {
     // Akka HTTP still needs a classic ActorSystem to start
@@ -17,9 +20,9 @@ object HttpServer {
     futureBinding.onComplete {
       case Success(binding) =>
         val address = binding.localAddress
-        system.log.info(s"Server online at http://${address.getAddress.getHostAddress}:${address.getPort}/")
+        log.info(s"Server online at http://${address.getAddress.getHostAddress}:${address.getPort}/")
       case Failure(ex) =>
-        system.log.error("Failed to bind HTTP endpoint, terminating system", ex)
+        log.error("Failed to bind HTTP endpoint, terminating system", ex)
         system.terminate()
     }
   }

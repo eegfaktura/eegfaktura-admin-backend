@@ -284,6 +284,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       line should not be empty
       line.get("tenant.id") shouldBe "RC100200"
       line.get("log.level") shouldBe "error"
+      line.get("log.logger") shouldBe "at.ourproject.routes.AdminRoutes" // follows LOG_LEVEL_APP
       line.get("error.type") shouldBe "java.lang.IllegalStateException"
     }
 

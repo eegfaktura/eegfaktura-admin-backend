@@ -66,7 +66,7 @@ object Registration extends App {
     val healthRouter = new HealthRoutes(HealthRoutes.postgresPing(system.settings.config.getConfig("slick.pgsql.vfeeg.properties")))
     HttpServer.startHttpServer(AccessLog.accessLog(healthRouter.route ~ regRouter.route ~ eegRouter.route ~ adminRouter.route))
 
-    Registration.system.log.info("Registration Server started ...")
+    Registration.log.info("Registration Server started ...")
 
     Behaviors.empty
   }
