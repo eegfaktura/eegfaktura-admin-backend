@@ -10,7 +10,7 @@ case class EegMeteringPoint (tenant: String, meteringPoint: String, direction: S
                              processState: String, activeSince: Option[java.sql.Date], inactiveSince: Option[java.sql.Date])
 
 trait EegMeteringPointRepositoryComponent {
-  def getMeteringPoint(tenant: String, participantId: String, meteringPoint: String): Future[EegMeteringPoint]
+  def getMeteringPoint(tenant: String, participantId: String, meteringPoint: String): Future[Option[EegMeteringPoint]]
 }
 
 object MetersRepository {
@@ -22,10 +22,10 @@ class MetersRepository(db: Database, p: JdbcProfile)(implicit ec: ExecutionConte
 
   import profile.api._
 
-  override def getMeteringPoint(tenant: String, participantId: String, meteringPoint: String): Future[EegMeteringPoint] =
+  override def getMeteringPoint(tenant: String, participantId: String, meteringPoint: String): Future[Option[EegMeteringPoint]] =
     db.run(meters
       .filter(_.tenant === tenant)
       .filter(_.participantId === participantId)
       .filter(_.meteringPoint ===meteringPoint)
-      .result.head)
+      .result.headOption)
 }
