@@ -18,8 +18,6 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
     Allowed("Config.scala", "msg", "fixed text naming a missing variable, three lines above"),
     Allowed("Registration.scala", "reason", "text of LogSettings.validate: the name and value of a log variable"),
     Allowed("logging/AccessLog.scala", "method", "the HTTP method"),
-    Allowed("logging/AccessLog.scala", "status", "the HTTP status, an Int"),
-    Allowed("logging/AccessLog.scala", "durationNanos", "a Long"),
     Allowed("logging/AccessLog.scala", "result", "the outcome: success, failure or refused"),
     Allowed("logging/LogContext.scala", "message", "the adapter behind RequestContext.log: Pekko's text, checked where Pekko writes it"),
     Allowed("routes/AdminRoutes.scala", "reason", "the backend's fixed refusal text or the message of the exception logged with it"),
@@ -32,7 +30,6 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
     Allowed("routes/KeycloakJwtAuthenticator.scala", "e.toString", "a refused token is expected, not an error: type and text " +
       "of a JOSE exception or of the check itself (issuer, audience, expiry) say enough, a stack per refused token is noise"),
     Allowed("services/RegisterService.scala", "userExists", "a Boolean"),
-    Allowed("services/RegisterService.scala", "status", "the backend's status code, an Int"),
   )
 
   private val Root = Paths.get("src", "main", "scala")
@@ -46,16 +43,16 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
 
   private def hitsOf(src: String): List[Hit] = {
     val masked = mask(src)
-    scan("Snippet.scala", masked, modelFields(Seq(masked))).hits
+    scan("Snippet.scala", src, masked, modelFields(Seq(masked))).hits
   }
 
   private def rules(src: String) = hitsOf(src).map(h => h.term -> h.rule)
 
   "the sources" should {
     lazy val results = {
-      val masked = sources.map { case (file, src) => file -> mask(src) }
-      val models = modelFields(masked.map(_._2))
-      masked.map { case (file, m) => scan(file, m, models) }
+      val masked = sources.map { case (file, src) => (file, src, mask(src)) }
+      val models = modelFields(masked.map(_._3))
+      masked.map { case (file, src, m) => scan(file, src, m, models) }
     }
     lazy val found = results.flatMap(_.hits)
 
@@ -99,8 +96,15 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
 
     "find getMessage without the exception, but not with it" in {
       rules("""log.error(s"failed: ${e.getMessage}")""") shouldBe List("e.getMessage" -> MessageOnly)
-      rules("""log.error(s"failed: ${e.getMessage}", e)""") shouldBe empty
-      rules("""log.error("failed", e)""") shouldBe empty
+      rules("""case Failure(e) => log.error(s"failed: ${e.getMessage}", e)""") shouldBe empty
+      rules("""catch { case e: IllegalStateException => log.error("failed", e) }""") shouldBe empty
+    }
+
+    "skip a bare value by its declared type, not by its name" in {
+      rules("""val status: Int = 1; val n: Long = 2; val ok: Boolean = true; log.info(s"x $status $n $ok")""") shouldBe empty
+      rules("""case Failure(ex) => log.warn("failed", ex)""") shouldBe empty
+      rules("""log.error("failed", e)""") shouldBe List("e" -> BareValue) // nothing says e is an exception
+      rules("""val status: String = "a"; log.info(s"x $status")""") shouldBe List("status" -> BareValue)
     }
 
     "find personal data and secrets, whatever the receiver, spelling or level" in {
@@ -125,10 +129,29 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
     }
 
     "compare whole words, not parts of one" in {
-      Seq("tenant.substring", "eeg.subscription", "e.tokens", "eeg.somebody", "rc.ownership", "eeg.grid.name",
+      Seq("tenant.substring", "eeg.subscription", "eeg.somebody", "eeg.subway", "eeg.bicycle", "eeg.grid.name",
         "eeg.contact.city").foreach { term =>
         withClue(term) { hitsOf(s"""log.info(s"x $${$term}")""") shouldBe empty }
       }
+    }
+
+    "find a list word with a plural s" in {
+      Seq("e.tokens", "user.emails", "cfg.passwords", "mail.recipients", "account.ibans", "account.IBANs", "accessTokens")
+        .foreach { term => withClue(term) { hitsOf(s"""log.info(s"x $${$term}")""").map(_.rule) shouldBe List(PersonalName) } }
+    }
+
+    "find a list word of five or more letters inside an all-lower-case identifier" in {
+      Seq("cfg.accesstoken", "cfg.userpassword", "m.mailaddress", "rc.ownership", "r.clientsecret")
+        .foreach { term => withClue(term) { hitsOf(s"""log.info(s"x $${$term}")""").map(_.rule) shouldBe List(PersonalName) } }
+    }
+
+    "find a list word directly before a placeholder in the text of a literal" in {
+      Seq("""log.info(String.format("password=%s", v))""", """log.info("token: {}", v)""", """log.info(s"secret=$v")""",
+        """log.info(s"iban ${v}")""", """log.debug(f"Emails: $v%s")""").foreach { call =>
+        withClue(call) { hitsOf(call).map(_.rule) should contain(BeforePlaceholder) }
+      }
+      Seq("""log.info("token refused")""", """log.info("tenant {} for the token", v)""", """log.info(s"$v has no token")""")
+        .foreach { call => withClue(call) { hitsOf(call).map(_.rule) should not contain BeforePlaceholder } }
     }
 
     "check the value of a key-value pair, not its key" in {
