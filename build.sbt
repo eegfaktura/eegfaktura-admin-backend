@@ -60,10 +60,6 @@ lazy val root = (project in file("."))
   )
 
 lazy val dockerSettings = Seq(
-//  Docker / packageName := "eeg-registration-backend",
-//  Docker / maintainer := "vfeeg <vfeeg.org>",
-//  Docker / version := appVersion,
-
   dockerBaseImage := "eclipse-temurin:17-jre",
   dockerRepository := Some("ghcr.io"),
   dockerUsername := Some("vfeeg-development"),
@@ -77,7 +73,6 @@ lazy val dockerSettings = Seq(
     case cmd => false
   },
   dockerCommands ++= Seq(
-    //    Cmd("ADD", "application-app.conf", "/conf/application.conf"),
     Cmd("LABEL", s"""version="${dockerVersion}""""),
     // logging (at.ourproject.logging.LogSettings): JSON lines in the image, the image version as service.version
     Cmd("ENV", "LOG_FORMAT=json", s"SERVICE_VERSION=${serviceVersion}"),

@@ -100,15 +100,6 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       log.info("Apply user groups ...")
       // Join groups to user
       for (g <- userGroups) userResource.joinGroup(g.getId)
-
-//      val clientRep = realm.clients().findByClientId("at.ourproject.vfeeg.app").get(0)
-//      val roles = realm.roles().list().asScala.filter(r => r.getName.toLowerCase == "admin" || r.getName.toLowerCase == "user").toList
-//      userResource.roles().clientLevel(clientRep.getId).add(roles.asJava);//
-
-      // Send password reset E-Mail
-      // VERIFY_EMAIL, UPDATE_PROFILE, CONFIGURE_TOTP, UPDATE_PASSWORD, TERMS_AND_CONDITIONS
-//      users.get(userId).executeActionsEmail(List("UPDATE_PASSWORD", "VERIFY_EMAIL").asJava)
-
     } catch {
       case e: Exception => throw new RuntimeException(s"Cannot create User: ${e.getMessage}", e)
     }

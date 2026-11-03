@@ -3,20 +3,8 @@ package at.ourproject
 import com.typesafe.config.{Config, ConfigFactory}
 import org.slf4j.LoggerFactory
 
-//object AppConfig {
-//  case class KeycloakFile(path: String)
-//
-//  val config = ConfigFactory.load()
-//
-//  def keycloakFile = config.getString("keycloak.configfile")
-//
-//}
-
 object KeycloakConfig {
   case class Auth(url: String, clientId: String, clientSecret: String, realm: String)
-//  case class ConfigJson (realm: String,`auth-server-url`: String, `ssl-required`: String,
-//  resource: String, `public-client`: Boolean, `verify-token-audience`: Boolean, `use-resource-role-mappings`: Boolean,
-//  `confidential-port`: Int)
 
   case class Configuration(auth: Auth)
 
