@@ -7,7 +7,7 @@ import org.apache.pekko.http.scaladsl.server.{Directive, Directive0, Directive1,
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
 
-import java.util.UUID
+import java.util.{Locale, UUID}
 import java.util.concurrent.atomic.AtomicBoolean
 import scala.util.{Failure, Success}
 
@@ -44,7 +44,7 @@ object AccessLog {
   def plainToken(value: String): Option[String] = Option(value).map(_.trim).filter(Token.matches)
 
   /** tenant.id: upper case, in the shape agreed for all services (RC100200, GEA GC123456-001), or not written. */
-  def tenantId(value: String): Option[String] = Option(value).map(_.trim.toUpperCase).filter(ValidTenant.matches)
+  def tenantId(value: String): Option[String] = Option(value).map(_.trim.toUpperCase(Locale.ROOT)).filter(ValidTenant.matches)
 
   /** trace.id and span.id of a W3C traceparent; version ff and all-zero ids are invalid. */
   def traceIds(value: String): Option[(String, String)] = Option(value).map(_.trim).collect {

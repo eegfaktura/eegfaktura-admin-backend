@@ -226,6 +226,15 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
     }
   }
 
+  "tenantId" should {
+    "upper-case independently of the JVM's locale" in {
+      val previous = java.util.Locale.getDefault
+      java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr")) // i -> İ in Turkish
+      try AccessLog.tenantId("gi123456-001") shouldBe Some("GI123456-001")
+      finally java.util.Locale.setDefault(previous)
+    }
+  }
+
   "traceIds" should {
     "accept a valid traceparent and refuse version ff, all-zero ids and a version 00 with extra fields" in {
       AccessLog.traceIds(s"00-$Trace-$Span-01") shouldBe Some((Trace, Span))
