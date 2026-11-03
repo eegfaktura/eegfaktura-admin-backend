@@ -22,6 +22,9 @@ Log output only (eegfaktura-dev#45); routes, answers and stored data are unchang
   text, and so do the warn lines of the Keycloak client and of `/readyz`. The message text of these lines changed. A
   refused token stays a warn line without a stack. The line for an exception in a route now has the logger
   `at.ourproject.http`, which follows `LOG_LEVEL_APP`.
+- **The lines of the admin routes and of the HTTP server start have their class as logger** (`at.ourproject.routes.AdminRoutes`,
+  `at.ourproject.HttpServer$`, `at.ourproject.Registration$`) instead of `org.apache.pekko.actor.typed.ActorSystem`, so
+  they follow `LOG_LEVEL_APP`.
 - **`java.util.logging` goes through SLF4J** (gRPC, pgjdbc, ...), so these lines are JSON on stdout instead of plain text
   on stderr. New dependency `org.slf4j:jul-to-slf4j` 2.0.17 (MIT), the version of the `slf4j-api` in use. Their levels
   stay at `INFO` and do not follow `LOG_LEVEL=debug`: gRPC's debug lines dump the frames.
@@ -33,7 +36,10 @@ Log output only (eegfaktura-dev#45); routes, answers and stored data are unchang
 
 ### Added
 - **Never-log test** (`NeverLogSpec`): fails the build on a log call with a bare value, `toString`, `getMessage` without
-  the exception, or a name like `email`, `iban`, `password`, `token`, `sub`. An exception needs an entry with a reason.
+  the exception, or a word of the list all services share (`email`, `iban`, `password`, `token`, `sub`, ...), compared
+  as whole words of an identifier. An exception needs an entry with a reason.
+- **Tests run in one forked JVM, one suite after another** (`Test / fork`, as eda-xp), so the log tests no longer share
+  logback and `java.util.logging` with sbt or another suite.
 
 ## [1.2.1] – 2026-11-02
 
