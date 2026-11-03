@@ -2,9 +2,8 @@ package at.ourproject.logging
 
 import at.ourproject.routes.{AdminRoutes, AuthenticatedUser, EegRoutes, HealthRoutes, KeycloakJwtAuthenticator, RegistrationRoutes}
 import at.ourproject.services.{AdminService, RegisterService}
+import at.ourproject.testsupport.LogCapture
 import ch.qos.logback.classic.spi.ILoggingEvent
-import ch.qos.logback.core.AppenderBase
-import ch.qos.logback.core.read.ListAppender
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
 import com.typesafe.config.ConfigFactory
 import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
@@ -22,7 +21,6 @@ import org.scalatest.wordspec.AnyWordSpecLike
 
 import java.nio.charset.StandardCharsets
 import java.util.Base64
-import java.util.concurrent.ConcurrentLinkedQueue
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.jdk.CollectionConverters._
@@ -34,21 +32,9 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
   private implicit val system: ActorSystem[Nothing] = testKit.system
   private implicit val ec: ExecutionContext = system.executionContext
 
-  private val appender = new ListAppender[ILoggingEvent]
-  private val accessLogger = JulBridgeSpec.logbackLogger("at.ourproject.access")
+  private val AccessLogger = "at.ourproject.access"
 
-  override def beforeAll(): Unit = {
-    appender.start()
-    accessLogger.addAppender(appender)
-    rootAppender.start()
-    rootLogger.addAppender(rootAppender)
-  }
-
-  override def afterAll(): Unit = {
-    accessLogger.detachAppender(appender)
-    rootLogger.detachAppender(rootAppender)
-    testKit.shutdownTestKit()
-  }
+  override def afterAll(): Unit = testKit.shutdownTestKit()
 
   private val Client = "at.ourproject.vfeeg.admin"
 
@@ -90,16 +76,19 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
   private def call(uri: String, headers: HttpHeader*): (HttpResponse, List[(String, JsonNode)]) =
     callAt(port, HttpRequest(uri = uri, headers = headers.toList))
 
-  private def callAt(port: Int, request: HttpRequest): (HttpResponse, List[(String, JsonNode)]) = {
-    appender.list.clear()
-    val response = Await.result(
+  private def callAt(port: Int, request: HttpRequest): (HttpResponse, List[(String, JsonNode)]) =
+    LogCapture(AccessLogger) { access =>
+      val response = send(port, request)
+      (response, encoded(access.events))
+    }
+
+  private def send(port: Int, request: HttpRequest): HttpResponse =
+    Await.result(
       Http().singleRequest(request.withUri(s"http://127.0.0.1:$port${request.uri}"))
         .flatMap(r => r.entity.discardBytes().future.map(_ => r)), 10.seconds)
-    (response, lines())
-  }
 
-  /** The access lines written since the last call, encoded as the image writes them. */
-  private def lines(): List[(String, JsonNode)] = appender.list.asScala.toList.map { e =>
+  /** The lines, encoded as the image writes them. */
+  private def encoded(events: List[ILoggingEvent]): List[(String, JsonNode)] = events.map { e =>
     val raw = new String(encoder.encode(e), StandardCharsets.UTF_8)
     raw -> new ObjectMapper().readTree(raw)
   }
@@ -211,17 +200,20 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       val slowPort = Await.result(Http().newServerAt("127.0.0.1", 0)
         .adaptSettings(_ => settings.withTimeouts(settings.timeouts.withRequestTimeout(300.millis)))
         .bind(AccessLog.accessLog(AccessLog.path("slow") { complete(late.future) })), 10.seconds).localAddress.getPort
-      val (response, timeoutLines) = callAt(slowPort, HttpRequest(uri = "/slow"))
-      response.status.intValue shouldBe 503
-      timeoutLines should have size 1
-      val j = timeoutLines.head._2
-      j.get("http.response.status_code").asInt shouldBe 503
-      j.get("event.outcome").asText shouldBe "failure"
-      j.get("http.route").asText shouldBe "/slow"
-      response.headers.find(_.is("x-request-id")).map(_.value) shouldBe Some(j.get("request.id").asText)
-      late.success("late")
-      Thread.sleep(300)
-      lines() should have size 1
+      LogCapture(AccessLogger) { access =>
+        val response = send(slowPort, HttpRequest(uri = "/slow"))
+        response.status.intValue shouldBe 503
+        val timeoutLines = encoded(access.events)
+        timeoutLines should have size 1
+        val j = timeoutLines.head._2
+        j.get("http.response.status_code").asInt shouldBe 503
+        j.get("event.outcome").asText shouldBe "failure"
+        j.get("http.route").asText shouldBe "/slow"
+        response.headers.find(_.is("x-request-id")).map(_.value) shouldBe Some(j.get("request.id").asText)
+        late.success("late")
+        Thread.sleep(300)
+        access.events should have size 1
+      }
     }
 
     "not be written for the health routes" in {
@@ -241,16 +233,9 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
     }
   }
 
-  // prepareForDeferredProcessing: the MDC of an event is read on the thread that logs it, not when the test looks
-  private val events = new ConcurrentLinkedQueue[ILoggingEvent]
-  private val rootAppender = new AppenderBase[ILoggingEvent] {
-    override def append(event: ILoggingEvent): Unit = { event.prepareForDeferredProcessing(); events.add(event) }
-  }
-  private val rootLogger = JulBridgeSpec.logbackLogger("ROOT")
-
   /** The fields of the lines with this message text, as the image writes them. */
-  private def lines(message: String): List[Map[String, Any]] =
-    events.asScala.toList.filter(_.getFormattedMessage.contains(message)).map(encoder.fieldsOf(_).toMap)
+  private def lines(all: LogCapture, message: String): List[Map[String, Any]] =
+    all.events.filter(_.getFormattedMessage.contains(message)).map(encoder.fieldsOf(_).toMap)
 
   private val requestUser = AuthenticatedUser("4711", None,
     Map("realm_access" -> Map[String, Any]("roles" -> List("superuser").asJava).asJava))
@@ -291,11 +276,11 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
     HttpRequest(HttpMethods.POST, uri, entity = HttpEntity(ContentTypes.`application/json`, json))
 
   "the lines of a request" should {
-    "carry request id, tenant and the exception on the route's error line after an actor's answer" in {
+    "carry request id, tenant and the exception on the route's error line after an actor's answer" in LogCapture("ROOT") { all =>
       val response = callRequest(post("/admin/master/update",
         """{"updateClass":"EEG","tenant":"rc100200","participantId":null,"meteringPoint":null,"value":{}}"""), "req-admin")
       response.status.intValue shouldBe 400
-      val line = lines("Message Update Failed").find(_.get("request.id").contains("req-admin"))
+      val line = lines(all, "Message Update Failed").find(_.get("request.id").contains("req-admin"))
       line should not be empty
       line.get("tenant.id") shouldBe "RC100200"
       line.get("log.level") shouldBe "error"
@@ -309,16 +294,16 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
       Await.result(messageFields.future, 10.seconds) shouldBe Map("request.id" -> "req-ponton", "tenant.id" -> "RC100300")
     }
 
-    "be on Pekko's error line of an exception in a route" in {
+    "be on Pekko's error line of an exception in a route" in LogCapture("ROOT") { all =>
       callRequest(HttpRequest(uri = "/boom"), "req-boom").status.intValue shouldBe 500
-      val line = lines("kaboom").find(_.get("request.id").contains("req-boom"))
+      val line = lines(all, "kaboom").find(_.get("request.id").contains("req-boom"))
       line should not be empty
       line.get("tenant.id") shouldBe "RC100200"
       line.get("log.level") shouldBe "error"
       line.get("error.type") shouldBe "java.lang.IllegalStateException"
     }
 
-    "be on the warn line of a refused token" in {
+    "be on the warn line of a refused token" in LogCapture("ROOT") { all =>
       def part(json: String) = Base64.getUrlEncoder.withoutPadding.encodeToString(json.getBytes(StandardCharsets.UTF_8))
       val token = s"""${part("""{"alg":"RS256","kid":"k1"}""")}.${part("""{"iss":"i"}""")}.${part("sig")}"""
       val refusing = new KeycloakJwtAuthenticator("http://127.0.0.1:1/certs", "i", "a")
@@ -330,7 +315,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
         .flatMap(r => r.entity.discardBytes().future.map(_ => r)), 20.seconds)
 
       response.status.intValue shouldBe 401
-      lines("while validating token").flatMap(_.get("request.id")) should contain("req-token")
+      lines(all, "while validating token").flatMap(_.get("request.id")) should contain("req-token")
     }
   }
 }
