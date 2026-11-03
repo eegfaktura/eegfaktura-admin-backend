@@ -37,14 +37,14 @@ object AccessLog {
 
   private val SkippedPaths = Set("/healthz", "/readyz")
   private val Token = "[A-Za-z0-9._:-]{1,128}".r
-  private val TenantId = "[A-Z0-9][A-Z0-9_-]{0,63}".r
+  private val ValidTenant = "[A-Z0-9][A-Z0-9_-]{0,63}".r
   private val Traceparent = "([0-9a-f]{2})-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}(-.*)?".r
 
   /** A plain token (request id, client id) or None; anything else is not written. */
   def plainToken(value: String): Option[String] = Option(value).map(_.trim).filter(Token.matches)
 
   /** tenant.id: upper case, in the shape agreed for all services (RC100200, GEA GC123456-001), or not written. */
-  def tenantId(value: String): Option[String] = Option(value).map(_.trim.toUpperCase).filter(TenantId.matches)
+  def tenantId(value: String): Option[String] = Option(value).map(_.trim.toUpperCase).filter(ValidTenant.matches)
 
   /** trace.id and span.id of a W3C traceparent; version ff and all-zero ids are invalid. */
   def traceIds(value: String): Option[(String, String)] = Option(value).map(_.trim).collect {
