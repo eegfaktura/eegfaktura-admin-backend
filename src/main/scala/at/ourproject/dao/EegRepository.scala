@@ -30,8 +30,6 @@ trait EegRepositoryComponent {
 }
 
 object EegRepository {
-  final case class TenantNotFound(id: Int) extends Exception(s"Tenant with id $id not found.")
-
   def apply(db: Db)(implicit ec: ExecutionContext) = new EegRepository(db.db, db.profile)
 }
 

@@ -9,7 +9,6 @@ case class EegParticipant (id: String, tenant: String, firstName: String, lastNa
 
 
 trait EegParticipantsRepositoryComponent {
-  def getByTenant(tenant: String): Future[Seq[EegParticipant]]
   def getById(id: String): Future[Option[EegParticipant]]
   def getFullParticipantByTenant(tenant: String): Future[Seq[EegParticipant]]
 }
@@ -26,8 +25,6 @@ class ParticipantsRepository(db: Database, p: JdbcProfile)(implicit ec: Executio
 
   override val profile: JdbcProfile = p
   import profile.api._
-
-  override def getByTenant(tenant: String): Future[Seq[EegParticipant]] = db.run(participants.filter(_.tenant === tenant).result)
 
   /** None also for a participant without a meter (inner join, as before). */
   override def getById(id: String): Future[Option[EegParticipant]] = {
