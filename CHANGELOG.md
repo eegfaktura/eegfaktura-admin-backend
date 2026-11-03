@@ -16,8 +16,8 @@ Log output only (eegfaktura-dev#45); routes, answers and stored data are unchang
   actor, Keycloak client, token check and Pekko's line for an exception in a route. `tenant.id` follows once the route
   knows the tenant. Not on: lines of libraries on their own threads and the health routes, which have no access line.
 - **`tenant.id` follows the rule of all services**, also on the access line: `^[A-Z0-9][A-Z0-9_-]{0,63}$` after
-  upper-casing (GEA `GC123456-001` included), otherwise the field is left out. Before, `.` and `:` and up to 128
-  characters passed.
+  upper-casing (GEA `GC123456-001` included; upper-cased independently of the JVM's locale), otherwise the field is
+  left out. Before, `.` and `:` and up to 128 characters passed.
 - **Error lines carry the exception** (`error.type`, `error.message`, `error.stack_trace`) instead of its message as
   text, and so do the warn lines of the Keycloak client and of `/readyz`. The message text of these lines changed. A
   refused token stays a warn line without a stack. The line for an exception in a route now has the logger
@@ -36,8 +36,10 @@ Log output only (eegfaktura-dev#45); routes, answers and stored data are unchang
 
 ### Added
 - **Never-log test** (`NeverLogSpec`): fails the build on a log call with a bare value, `toString`, `getMessage` without
-  the exception, or a word of the list all services share (`email`, `iban`, `password`, `token`, `sub`, ...), compared
-  as whole words of an identifier. An exception needs an entry with a reason.
+  the exception, or a word of the list all services share (`email`, `iban`, `password`, `token`, `sub`, ...): a whole
+  word of an identifier, also with a plural s, inside an all-lower-case identifier for words of five or more letters,
+  and in the text of a literal right before a placeholder. Numbers, booleans and exceptions are skipped by their
+  declared type. An exception needs an entry with a reason.
 - **Tests run in one forked JVM, one suite after another** (`Test / fork`, as eda-xp), so the log tests no longer share
   logback and `java.util.logging` with sbt or another suite.
 
