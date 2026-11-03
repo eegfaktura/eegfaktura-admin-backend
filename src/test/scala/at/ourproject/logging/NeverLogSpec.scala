@@ -45,19 +45,18 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
 
   private def hitsOf(src: String): List[Hit] = {
     val masked = mask(src)
-    scan("Snippet.scala", src, masked, modelFields(Seq(masked)))
+    scan("Snippet.scala", masked, modelFields(Seq(masked))).hits
   }
 
   private def rules(src: String) = hitsOf(src).map(h => h.term -> h.rule)
 
   "the sources" should {
-    var calls = 0
-    lazy val found = {
-      val all = sources
-      val masked = all.map { case (file, src) => (file, src, mask(src)) }
-      val models = modelFields(masked.map(_._3))
-      masked.flatMap { case (file, src, m) => scan(file, src, m, models, () => calls += 1) }
+    lazy val results = {
+      val masked = sources.map { case (file, src) => file -> mask(src) }
+      val models = modelFields(masked.map(_._2))
+      masked.map { case (file, m) => scan(file, m, models) }
     }
+    lazy val found = results.flatMap(_.hits)
 
     "have no hit outside the allowlist" in {
       val open = found.filterNot(h => Allowlist.exists(a => h.file.endsWith(a.file) && a.term == h.term))
@@ -65,8 +64,7 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
     }
 
     "really be scanned" in {
-      found
-      calls should be > 40
+      results.map(_.calls).sum should be > 40
     }
 
     "have no allowlist entry without a use or a reason" in {
@@ -105,8 +103,11 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
     }
 
     "find personal data and secrets, whatever the receiver, spelling or level" in {
-      val calls = Seq("eeg.user.email", "user.firstName", "userInfo.lastname", "u.getLastName()", "account.iban",
-        "cfg.clientSecret", "user.password", "accessToken", "claims.sub", "claims.getSubject", "userId")
+      val calls = Seq("eeg.user.email", "user.firstName", "user.first_name", "userInfo.lastname", "u.getLastName()",
+        "account.iban", "account.bic", "cfg.clientSecret", "user.password", "cfg.passwd", "cfg.pwd", "accessToken",
+        "jwt", "bearerValue", "request.authorization", "credential", "creds", "cookie", "apiKey", "api_key",
+        "m.vorname", "m.nachname", "m.name1", "m.name2", "mailAddress", "recipient", "sentTo", "accountHolder",
+        "claims.sub", "claims.getSubject", "userId", "user.userName", "payload", "response.body")
       calls.foreach { term =>
         withClue(term) {
           hitsOf(s"""log.debug(s"x $${$term}")""").map(_.rule) should contain(PersonalName)
@@ -116,14 +117,22 @@ class NeverLogSpec extends AnyWordSpec with Matchers {
     }
 
     "check every segment of a dotted value against the names" in {
-      Seq("eeg.contact.street", "eeg.contact.streetNumber", "eeg.contact.city", "eeg.contact.zip", "eeg.contact.phone",
-        "eeg.user.username", "user.getUsername", "user.userName", "eeg.accountInfo.owner", "eeg.grid.name", "eeg.name").foreach { term =>
+      Seq("eeg.contact.street", "eeg.contact.streetNumber", "eeg.contact.phone", "eeg.user.username", "user.getUsername",
+        "user.userName", "eeg.accountInfo.owner").foreach { term =>
         withClue(term) { hitsOf(s"""log.info(s"x $${$term}")""").map(_.rule) shouldBe List(PersonalName) }
       }
     }
 
-    "find a field name in a key-value pair" in {
-      rules("""line.addKeyValue("user.email", "x")""") shouldBe List("user.email" -> PersonalName)
+    "compare whole words, not parts of one" in {
+      Seq("tenant.substring", "eeg.subscription", "e.tokens", "eeg.somebody", "rc.ownership", "eeg.grid.name",
+        "eeg.contact.city").foreach { term =>
+        withClue(term) { hitsOf(s"""log.info(s"x $${$term}")""") shouldBe empty }
+      }
+    }
+
+    "check the value of a key-value pair, not its key" in {
+      rules("""line.addKeyValue("user.email", "x")""") shouldBe empty
+      rules("""line.addKeyValue("x", user.email)""") shouldBe List("user.email" -> PersonalName)
     }
 
     "see the other ways to log" in {

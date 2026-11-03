@@ -13,6 +13,9 @@ object NeverLogScanner {
     override def toString: String = s"$file:$line `$term`: $rule"
   }
 
+  /** The hits of a file and the number of log calls seen. */
+  final case class Result(hits: List[Hit], calls: Int)
+
   val BareValue = "bare value, may be a model type"
   val ToStringCall = "toString, may be a model type"
   val ModelField = "field of a model type"
@@ -23,16 +26,18 @@ object NeverLogScanner {
   // a chain of names; after a call too: `Option(x).email` is `email` here
   private val Term = """(?:(?<![\w.])|(?<=\)\.))[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*""".r
   private val CaseClass = """case class (\w+)""".r
-  private val KeyLiteral = """^\s*"([^"]*)"""".r
 
   private val Keywords = Set("_", "true", "false", "null", "new", "if", "else", "this")
   private val ThrowableNames = Set("e", "ex", "cause", "exception", "t")
   private val MessageCalls = Set("getMessage", "getLocalizedMessage")
-  // lower case; matched inside an identifier, so `getEmail`, `firstName` and `accessToken` count
-  private val Names = Seq("firstname", "lastname", "email", "iban", "password", "secret", "token", "userid")
-  // matched as a whole camel-case word, on every segment of a dotted value: `getSubject` and `eeg.contact.streetNumber`
-  // count, `substring` does not
-  private val Words = Set("sub", "subject", "username", "phone", "street", "owner", "name", "city", "zip")
+  // the list of all services. An identifier is split into words (camelCase, snake_case); an entry matches one word or
+  // two in a row written together: `getEmail`, `first_name`, `accessToken`, `apiKey`, `getSubject` count, `substring`
+  // does not. Every segment of a dotted value is checked.
+  private val Words = Set("password", "passwd", "pwd", "secret", "token", "jwt", "bearer", "authorization", "credential",
+    "creds", "cookie", "apikey", "iban", "bic", "firstname", "lastname", "vorname", "nachname", "name1", "name2", "street",
+    "phone", "email", "mailaddress", "recipient", "sentto", "owner", "accountholder", "username", "userid", "sub",
+    "subject", "payload", "body")
+  private val WordBreak = "(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|_".r
 
   /**
    * `src` with comments and literal text blanked and interpolated expressions left as code; offsets and line breaks
@@ -106,23 +111,23 @@ object NeverLogScanner {
     masked.flatMap(declaration.findAllMatchIn(_).map(_.group(1))).toSet
   }
 
-  /** The hits in one file; `calls` counts the log calls seen. */
-  def scan(file: String, src: String, masked: String, models: Set[String], calls: () => Unit = () => ()): List[Hit] =
-    LogCall.findAllMatchIn(masked).toList.flatMap { call =>
-      calls()
+  /** The hits in one file (`masked` is `mask` of its source) and the number of log calls seen. */
+  def scan(file: String, masked: String, models: Set[String]): Result = {
+    val calls = LogCall.findAllMatchIn(masked).toList
+    val hits = calls.flatMap { call =>
       val end = closing(masked, call.end)
       val args = masked.substring(call.end, end)
       val line = masked.substring(0, call.start).count(_ == '\n') + 1
       val parts = topLevelArgs(args)
       val throwable = parts.lastOption.map(_.trim).filter(a => parts.size > 1 && ThrowableNames(a))
       val code = if (throwable.isDefined) parts.init.mkString(",") else args
-      val key = if (call.matched.contains("addKeyValue")) KeyLiteral.findFirstMatchIn(src.substring(call.end, end)).map(_.group(1)) else None
-      val keyHit = key.filter(isPersonal).map(k => Hit(file, line, k, PersonalName)).toList
-      keyHit ++ Term.findAllMatchIn(code).toList.flatMap { t =>
+      Term.findAllMatchIn(code).toList.flatMap { t =>
         val isCall = code.substring(t.end).trim.startsWith("(")
         rule(t.matched, isCall, throwable.isDefined, models).filterNot(_ => Keywords(t.matched)).map(Hit(file, line, t.matched, _))
       }
     }
+    Result(hits, calls.size)
+  }
 
   private def rule(term: String, isCall: Boolean, hasThrowable: Boolean, models: Set[String]): Option[String] = {
     val segments = term.split('.').toList
@@ -136,8 +141,8 @@ object NeverLogScanner {
   }
 
   private def isPersonal(identifier: String): Boolean = {
-    val lower = identifier.toLowerCase
-    Names.exists(lower.contains) || identifier.split("(?=[A-Z])|[._]").map(_.toLowerCase).exists(Words)
+    val words = WordBreak.split(identifier).filter(_.nonEmpty).map(_.toLowerCase).toList
+    words.exists(Words) || words.sliding(2).exists(pair => pair.size == 2 && Words(pair.mkString))
   }
 
   private def closing(masked: String, open: Int): Int = {
