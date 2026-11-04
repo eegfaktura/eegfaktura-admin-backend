@@ -1,6 +1,5 @@
 package at.ourproject.routes
 
-import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
@@ -10,9 +9,9 @@ import at.ourproject.logging.AccessLog
 import com.github.pjfanning.pekkohttpcirce.FailFastCirceSupport._
 import io.circe.generic.auto._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
-class EegRoutes (daos: Dao, akkaAuthenticator: Credentials => Future[Option[AuthenticatedUser]])(implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router {
+class EegRoutes (daos: Dao, akkaAuthenticator: Credentials => Future[Option[AuthenticatedUser]]) extends Router {
 
   private val eegRoutes = {
       pathPrefix("vfeeg") {
