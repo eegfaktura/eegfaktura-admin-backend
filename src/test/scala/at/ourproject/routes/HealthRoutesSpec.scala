@@ -16,9 +16,9 @@ import java.io.{DataInputStream, DataOutputStream}
 import java.net.{InetAddress, ServerSocket, Socket}
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeoutException
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{Duration, DurationInt}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.jdk.CollectionConverters._
 import scala.util.Try
@@ -136,21 +136,23 @@ class HealthRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfter
 
     "reuse a result younger than a second and check again after that" in {
       val checks = new AtomicInteger()
-      val port = bind(new HealthRoutes(() => { checks.incrementAndGet(); Future.successful(1) }).route)
+      val clock = new AtomicLong()
+      val port = bind(new HealthRoutes(() => { checks.incrementAndGet(); Future.successful(1) }, now = () => clock.get).route)
       Await.result(request(port, "/readyz"), 10.seconds)
+      clock.addAndGet(999.millis.toNanos)
       Await.result(request(port, "/readyz"), 10.seconds)
       checks.get shouldBe 1
-      Thread.sleep(1100)
+      clock.addAndGet(1.millis.toNanos)
       Await.result(request(port, "/readyz"), 10.seconds)
       checks.get shouldBe 2
     }
   }
 
   "GET /readyz while the previous ping still runs" should {
-    // the check answers from the queue, one entry per call
+    // the check answers from the queue, one entry per call; no reuse window, every call checks again
     def routesWith(results: Future[Any]*): Int = {
       val queue = new java.util.concurrent.ConcurrentLinkedQueue[Future[Any]](results.asJava)
-      bind(new HealthRoutes(() => queue.poll()).route)
+      bind(new HealthRoutes(() => queue.poll(), reuseFor = Duration.Zero).route)
     }
     def status(port: Int) = Await.result(request(port, "/readyz"), 10.seconds)._1.status
     val busy = Future.failed(new HealthRoutes.PingStillRunning)
@@ -158,21 +160,18 @@ class HealthRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfter
     "answer 200 when the last ping succeeded" in {
       val port = routesWith(Future.successful(1), busy)
       status(port) shouldBe StatusCodes.OK
-      Thread.sleep(1100)
       status(port) shouldBe StatusCodes.OK
     }
 
     "answer 200 when the last ping was refused with 53300" in {
       val port = routesWith(Future.failed(new java.sql.SQLException("too many", "53300")), busy)
       status(port) shouldBe StatusCodes.OK
-      Thread.sleep(1100)
       status(port) shouldBe StatusCodes.OK
     }
 
     "answer 503 when the last ping failed" in {
       val port = routesWith(Future.failed(new RuntimeException("down")), busy)
       status(port) shouldBe StatusCodes.ServiceUnavailable
-      Thread.sleep(1100)
       status(port) shouldBe StatusCodes.ServiceUnavailable
     }
 
