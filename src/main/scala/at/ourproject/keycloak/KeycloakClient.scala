@@ -8,7 +8,6 @@ import org.keycloak.admin.client.resource.{RealmResource, UserResource, UsersRes
 import org.keycloak.admin.client.{CreatedResponseUtil, Keycloak, KeycloakBuilder}
 import org.keycloak.representations.idm.{CredentialRepresentation, GroupRepresentation, UserRepresentation}
 import org.slf4j.{Logger, LoggerFactory}
-import sttp.client3.{HttpURLConnectionBackend, Identity, SttpBackend}
 
 import scala.util.Try
 
@@ -26,17 +25,8 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
 
   def checkUserAlreadyExist(email: String): Boolean = !searchUsersByEmail(email).isEmpty
 
-  def getUserRepresentation(email: String): UserRepresentation = {
-    val realm = realmResource(keycloakAdminClient)
-    val users = usersResource(realm)
-
-    try {
-      val userResources = users.searchByEmail(email, true)
-      userResources.get(0)
-    } catch {
-      case e: Exception => throw new RuntimeException(s"No valid user found: ${e.getMessage}", e)
-    }
-  }
+  /** The id of the user with this e-mail, None if there is none; a Keycloak error is thrown, not read as "no user". */
+  def findUserId(email: String): Option[String] = searchUsersByEmail(email).asScala.headOption.map(_.getId)
 
   def normalizeName(name: String): String = {
     val replacements = Map (
@@ -110,15 +100,6 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
       log.info("Apply user groups ...")
       // Join groups to user
       for (g <- userGroups) userResource.joinGroup(g.getId)
-
-//      val clientRep = realm.clients().findByClientId("at.ourproject.vfeeg.app").get(0)
-//      val roles = realm.roles().list().asScala.filter(r => r.getName.toLowerCase == "admin" || r.getName.toLowerCase == "user").toList
-//      userResource.roles().clientLevel(clientRep.getId).add(roles.asJava);//
-
-      // Send password reset E-Mail
-      // VERIFY_EMAIL, UPDATE_PROFILE, CONFIGURE_TOTP, UPDATE_PASSWORD, TERMS_AND_CONDITIONS
-//      users.get(userId).executeActionsEmail(List("UPDATE_PASSWORD", "VERIFY_EMAIL").asJava)
-
     } catch {
       case e: Exception => throw new RuntimeException(s"Cannot create User: ${e.getMessage}", e)
     }
@@ -232,11 +213,11 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
    * their own) or, if the e-mail is known, the existing account gets the community and the groups.
    */
   def ensureAccount(tenant: String, user: AccountUser, userGroups: List[GroupRepresentation]): AccountStatus.Value =
-    getUserId(user.email) match {
-      case scala.util.Success(id) =>
+    findUserId(user.email) match {
+      case Some(id) =>
         configureUser(id, tenant, UserInfo("", "", user.firstname, user.lastname, user.email), userGroups)
         AccountStatus.linked
-      case scala.util.Failure(_) =>
+      case None =>
         createUser(User(None, user.firstname, user.lastname, user.email, None), tenant, userGroups)
         AccountStatus.created
     }
@@ -303,10 +284,9 @@ class KeycloakClient(keycloakAdminClient: Keycloak, config: Configuration) {
     }
   }
 
-  def getUserId(email: String): Try[String] = Try {
-    val user = getUserRepresentation(email)
-    user.getId
-  }
+  /** Any failure, also "no user", is a Failure: for the callers that answer both the same way. */
+  def getUserId(email: String): Try[String] =
+    Try(findUserId(email).getOrElse(throw new NoSuchElementException("No valid user found")))
 }
 
 
@@ -315,8 +295,6 @@ object AccountStatus extends Enumeration {
 }
 
 object KeycloakClient {
-  implicit val backend: SttpBackend[Identity, Any] = HttpURLConnectionBackend()
-
   case class User(username: Option[String], firstName: String, lastName: String, email: String, password: Option[String])
 
   /** What the admin tool shows of an account: no id, no attributes. */

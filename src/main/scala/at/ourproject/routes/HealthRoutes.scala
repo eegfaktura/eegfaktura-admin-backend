@@ -18,23 +18,25 @@ import scala.util.{Failure, Success, Using}
 
 // Kubernetes probes, without authentication (the documented exception to "every endpoint needs a bearer token").
 // /healthz checks nothing, so a database outage never restarts the pod; /readyz runs the given database check.
-// At most one check runs at a time; callers during a check, or within a second after it, share its result, so
+// At most one check runs at a time; callers during a check, or within `reuseFor` after it, share its result, so
 // anonymous callers of the public path cannot multiply the load on the database.
 // Postgres refusing the ping with SQLSTATE 53300 (too_many_connections) counts as ready: the application's pool
 // still holds its connections, and a saturated database must not take the service out of the load balancer.
 // The bodies are fixed texts; a failed or refused check is logged only when the state changes.
-class HealthRoutes(dbCheck: () => Future[Any], timeout: FiniteDuration = 2.seconds)(implicit system: ActorSystem[_]) extends Router {
+// `now` (nanoseconds) is the clock of the reuse window; tests replace it.
+class HealthRoutes(dbCheck: () => Future[Any], timeout: FiniteDuration = 2.seconds, reuseFor: FiniteDuration = 1.second,
+                   now: () => Long = () => System.nanoTime())(implicit system: ActorSystem[_]) extends Router {
   private val log = LoggerFactory.getLogger(getClass)
   private implicit val ec: ExecutionContext = system.executionContext
 
-  private val reuseNanos = 1.second.toNanos
+  private val reuseNanos = reuseFor.toNanos
   private var current: Future[Boolean] = _
   @volatile private var completedAt = 0L
   @volatile private var lastState = "none" // none (no result yet), ok, saturated or down
 
   private def ready: Future[Boolean] = synchronized {
-    if (current == null || (current.isCompleted && System.nanoTime - completedAt >= reuseNanos)) {
-      current = check().andThen { case _ => completedAt = System.nanoTime }
+    if (current == null || (current.isCompleted && now() - completedAt >= reuseNanos)) {
+      current = check().andThen { case _ => completedAt = now() }
     }
     current
   }

@@ -6,7 +6,6 @@ import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
-import org.apache.pekko.stream.{Materializer, SystemMaterializer}
 import org.apache.pekko.util.Timeout
 import at.ourproject.dao.Dao
 import at.ourproject.logging.AccessLog
@@ -37,11 +36,17 @@ case class UpdateMessage(updateClass: UpdateClassEnum, tenant: String, participa
 class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[AuthenticatedUser]], admin: ActorRef[AdminService.Command]) (implicit val system: ActorSystem[_], val ex: ExecutionContext) extends Router {
   private implicit val timeout: Timeout = Timeout.create(system.settings.config.getDuration("app.routes.ask-timeout"))
   implicit val scheduler: Scheduler = system.scheduler
-  implicit val materializer: Materializer = SystemMaterializer(system).materializer
 
   import at.ourproject.json.JsonFormater._
 
   val log: Logger = LoggerFactory.getLogger(getClass)
+
+  // The row read back after the update; 404 when there is none.
+  private def found[T: Encoder](row: Future[Option[T]]): Route =
+    onSuccess(row) {
+      case Some(value) => complete(value)
+      case None => complete(StatusCodes.NotFound)
+    }
 
   private val adminRoutes = concat(
     pathPrefix("admin") {
@@ -56,7 +61,7 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
                 )(timeout, scheduler).mapTo[AdminService.Command]
                 onSuccess(processFuture) {
                   case AdminService.MessageUpdateOk =>
-                    complete(daos.meteringRepository.getMeteringPoint(updateMsg.tenant, updateMsg.participantId.getOrElse(""), updateMsg.meteringPoint.getOrElse("")))
+                    found(daos.meteringRepository.getMeteringPoint(updateMsg.tenant, updateMsg.participantId.getOrElse(""), updateMsg.meteringPoint.getOrElse("")))
                   case AdminService.MessageUpdateFail(_, reason, cause) =>
                     log.error("Message Update Failed - {}", reason, cause.orNull)
                     complete(StatusCodes.BadRequest)
@@ -74,7 +79,7 @@ class AdminRoutes(daos: Dao, akkaAuthenticator: Credentials => Future[Option[Aut
                 )(timeout, scheduler).mapTo[AdminService.Command]
                 onSuccess(processFuture) {
                   case AdminService.MessageUpdateOk =>
-                    complete(daos.participantRepository.getById(updateMsg.participantId.getOrElse("")))
+                    found(daos.participantRepository.getById(updateMsg.participantId.getOrElse("")))
                   case AdminService.MessageUpdateFail(_, reason, cause) =>
                     log.error("Message Update Failed - {}", reason, cause.orNull)
                     complete(StatusCodes.BadRequest)

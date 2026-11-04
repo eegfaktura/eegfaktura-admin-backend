@@ -6,7 +6,6 @@ import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
-import org.apache.pekko.stream.{Materializer, SystemMaterializer}
 import org.apache.pekko.util.Timeout
 import at.ourproject.logging.AccessLog
 import at.ourproject.services.RegisterService
@@ -23,7 +22,6 @@ class RegistrationRoutes(akkaAuthenticator: Credentials => Future[Option[Authent
   // they get more time than the other routes (platform#166). Below the idle timeout and the proxy read timeout (60 s).
   private val keycloakTimeout: Timeout = Timeout(50.seconds)
   implicit val scheduler: Scheduler = system.scheduler
-  implicit val materializer: Materializer = SystemMaterializer(system).materializer
 
   private val registrationRoutes = {
     concat(

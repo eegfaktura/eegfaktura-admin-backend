@@ -10,6 +10,7 @@ import com.nimbusds.jose.proc.{BadJOSEException, JWSVerificationKeySelector, Sec
 import com.nimbusds.jwt.proc.DefaultJWTProcessor
 import com.nimbusds.jwt.SignedJWT
 import com.nimbusds.jwt.JWTClaimsSet
+import com.nimbusds.jose.util.ResourceRetriever
 import org.slf4j.LoggerFactory
 
 import java.net.URL
@@ -27,13 +28,15 @@ object KeycloakJwtAuthenticator {
     }
 }
 
-class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expectedAudience: String)(implicit ec: ExecutionContext) {
+// jwksRetriever: how the JWKS is fetched; None is the library's default (500 ms timeouts), tests give longer ones.
+class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expectedAudience: String,
+                               jwksRetriever: Option[ResourceRetriever] = None)(implicit ec: ExecutionContext) {
 
   private val log = LoggerFactory.getLogger(getClass)
 
   private val jwkSetUrl = new URL(jwksUrl)
   // RemoteJWKSet caches keys and handles refreshes (key rotation)
-  private val jwkSource = new RemoteJWKSet[SecurityContext](jwkSetUrl)
+  private val jwkSource = new RemoteJWKSet[SecurityContext](jwkSetUrl, jwksRetriever.orNull)
   private val jwtProcessor = {
     val p = new DefaultJWTProcessor[SecurityContext]()
     val keySelector = new JWSVerificationKeySelector[SecurityContext](JWSAlgorithm.RS256, jwkSource)
@@ -105,33 +108,5 @@ class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expected
         .recover { case _ => None }
     case _ =>
       Future.successful(None)
-  }
-
-  // Helper: extract roles from standard Keycloak structure
-  def extractRoles(claims: JWTClaimsSet): Seq[String] = {
-    def asStringSeq(obj: Any): Seq[String] = obj match {
-      case l: java.util.List[_] => l.asScala.toSeq.map(_.toString)
-      case s: Seq[_]            => s.map(_.toString)
-      case _                    => Seq.empty
-    }
-
-    val realmRoles: Seq[String] = Option(claims.getClaim("realm_access")).flatMap {
-      case m: java.util.Map[_, _] =>
-        Option(m.asInstanceOf[java.util.Map[String, _]].get("roles")).map(asStringSeq)
-      case _ => None
-    }.getOrElse(Seq.empty)
-
-    val clientRoles: Seq[String] = Option(claims.getClaim("resource_access")).map {
-      case m: java.util.Map[_, _] =>
-        val resourceAccess = m.asInstanceOf[java.util.Map[String, _]]
-        resourceAccess.values().asScala.toSeq.flatMap {
-          case v: java.util.Map[_, _] =>
-            Option(v.asInstanceOf[java.util.Map[String, _]].get("roles")).map(asStringSeq).getOrElse(Seq.empty)
-          case _ => Seq.empty
-        }
-      case _ => Seq.empty
-    }.getOrElse(Seq.empty)
-
-    (realmRoles ++ clientRoles).distinct
   }
 }

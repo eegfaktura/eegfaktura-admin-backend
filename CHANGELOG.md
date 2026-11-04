@@ -43,6 +43,28 @@ Log output only (eegfaktura-dev#45); routes, answers and stored data are unchang
 - **Tests run in one forked JVM, one suite after another** (`Test / fork`, as eda-xp), so the log tests no longer share
   logback and `java.util.logging` with sbt or another suite.
 
+### Fixed
+- **A failed Keycloak user search no longer creates a second account** (AB-CQ-18). `POST /eeg/account` and the
+  account list of `POST /eeg/register` read any failure of the user lookup (also a Keycloak error or timeout) as "no
+  such user" and tried to create one. Now such an error gives the account the result `failed` (HTTP 500 for
+  `/eeg/account`); "no user" still creates one, an existing user is still linked.
+- **The read-back after a master-data update answers 404 instead of 500** when the participant or metering point is
+  not found (`POST /admin/master/update`, `.../participant`; a participant without a metering point counts as not
+  found, as before). Found rows answer as before (AB-CQ-14).
+
+### Changed (code-quality review 2026-11-03)
+- **The participant list (`GET /vfeeg/participants`) joins participants and metering points on the participant id**
+  instead of the tenant (every participant with every meter of the community, then filtered in memory). The result
+  is the same (AB-CQ-14).
+- **Cleanup**: removed unused code and leftovers — the never-sent
+  `RegisterParticipant` message, the commented-out tenant-user repository and table, `extractRoles`, unused repository
+  members, constructor parameters and implicits, commented-out config and Docker settings; the unreferenced
+  `realm-export.json` and `keycloak-test.json` (no longer packaged into the image); the unused dependencies sttp
+  client and scala-logging and about 20 unused declarations in `Dependencies.scala`; `pekko.loglevel`/`pekko.loggers`
+  in `application.conf`, which `LogSettings` always overrode (logging unchanged). README describes the service as it
+  is (HTTP only, gRPC as client). Tests: no fixed sleeps in the health and access-log tests (injectable reuse window
+  and clock in `HealthRoutes`), no warm-up loop in the token tests (optional JWKS retriever).
+
 ## [1.2.1] – 2026-11-02
 
 ### Security

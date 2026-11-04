@@ -13,6 +13,7 @@ import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken, RawHeader}
 import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpHeader, HttpMethods, HttpRequest, HttpResponse}
 import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import org.apache.pekko.http.scaladsl.settings.ServerSettings
 import org.scalatest.BeforeAndAfterAll
@@ -65,7 +66,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
     val routes = AccessLog.accessLog(
       new HealthRoutes(() => Future.successful(1)).route ~
         new RegistrationRoutes(authenticator, node).route ~
-        new EegRoutes(null, authenticator, node).route ~
+        new EegRoutes(null, authenticator).route ~
         new AdminRoutes(null, authenticator, admin).route)
     Await.result(Http().newServerAt("127.0.0.1", 0).bind(routes), 10.seconds).localAddress.getPort
   }
@@ -200,10 +201,15 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
 
     "carry the 503 the server answers on a request timeout, once, also when the route completes later" in {
       val late = Promise[String]()
+      // completes when the access log has handled the route's late result
+      val handled = Promise[Unit]()
+      val logged = AccessLog.accessLog(AccessLog.path("slow") { complete(late.future) })
+      val observed: Route = ctx => logged(ctx).andThen { case _ => handled.trySuccess(()) }(ctx.executionContext)
       val settings = ServerSettings(system)
       val slowPort = Await.result(Http().newServerAt("127.0.0.1", 0)
         .adaptSettings(_ => settings.withTimeouts(settings.timeouts.withRequestTimeout(300.millis)))
-        .bind(AccessLog.accessLog(AccessLog.path("slow") { complete(late.future) })), 10.seconds).localAddress.getPort
+        .bind(observed), 10.seconds)
+        .localAddress.getPort
       LogCapture(AccessLogger) { access =>
         val response = send(slowPort, HttpRequest(uri = "/slow"))
         response.status.intValue shouldBe 503
@@ -215,7 +221,7 @@ class AccessLogSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterAll
         j.get("http.route").asText shouldBe "/slow"
         response.headers.find(_.is("x-request-id")).map(_.value) shouldBe Some(j.get("request.id").asText)
         late.success("late")
-        Thread.sleep(300)
+        Await.result(handled.future, 10.seconds)
         access.events should have size 1
       }
     }

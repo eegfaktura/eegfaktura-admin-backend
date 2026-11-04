@@ -61,7 +61,7 @@ object Registration extends App {
       cred => authenticator.authenticate(cred)
 
     val regRouter = new RegistrationRoutes(akkaAuthenticator, node)
-    val eegRouter = new EegRoutes(daos, akkaAuthenticator, node)
+    val eegRouter = new EegRoutes(daos, akkaAuthenticator)
     val adminRouter = new AdminRoutes(daos, akkaAuthenticator, masterNode)
     val healthRouter = new HealthRoutes(HealthRoutes.postgresPing(system.settings.config.getConfig("slick.pgsql.vfeeg.properties")))
     HttpServer.startHttpServer(AccessLog.accessLog(healthRouter.route ~ regRouter.route ~ eegRouter.route ~ adminRouter.route))

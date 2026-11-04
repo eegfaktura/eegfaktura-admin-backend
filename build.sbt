@@ -34,8 +34,7 @@ lazy val root = (project in file("."))
     // Pekko ist auf Maven Central, kein Lightbend-Resolver mehr noetig
     libraryDependencies ++= Seq(
         keycloakCore, keycloakAdminClient,
-        sttpClient3,
-        /*slf4j,*/ scalaLogging, logback, julToSlf4j,
+        logback, julToSlf4j,
         akka, akkaStream, akkaHttp, pekkoSlf4j, pekkoDiscovery,
         circeCore, circeGeneric, circeParser, akkaHttpCirce,
         slick, slickHikaricp, postgresLib, nimbusdsJwt,
@@ -61,10 +60,6 @@ lazy val root = (project in file("."))
   )
 
 lazy val dockerSettings = Seq(
-//  Docker / packageName := "eeg-registration-backend",
-//  Docker / maintainer := "vfeeg <vfeeg.org>",
-//  Docker / version := appVersion,
-
   dockerBaseImage := "eclipse-temurin:17-jre",
   dockerRepository := Some("ghcr.io"),
   dockerUsername := Some("vfeeg-development"),
@@ -78,7 +73,6 @@ lazy val dockerSettings = Seq(
     case cmd => false
   },
   dockerCommands ++= Seq(
-    //    Cmd("ADD", "application-app.conf", "/conf/application.conf"),
     Cmd("LABEL", s"""version="${dockerVersion}""""),
     // logging (at.ourproject.logging.LogSettings): JSON lines in the image, the image version as service.version
     Cmd("ENV", "LOG_FORMAT=json", s"SERVICE_VERSION=${serviceVersion}"),

@@ -25,8 +25,6 @@ object AdminService {
 
     implicit def ec: ExecutionContext = system.executionContext
 
-    //      context.system.receptionist ! Receptionist.Register(NodeServiceKey, context.self)
-
     val adminClient = AdminEegServiceClient(GrpcClientSettings.fromConfig("register.RegisterEegService"))
 
     Behaviors.receiveMessage { message => {
