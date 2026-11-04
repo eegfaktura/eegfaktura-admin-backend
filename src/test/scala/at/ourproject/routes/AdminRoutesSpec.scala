@@ -8,7 +8,7 @@ import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.http.scaladsl.Http
 import org.apache.pekko.http.scaladsl.model.headers.OAuth2BearerToken
-import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpMethods, HttpRequest, HttpResponse, StatusCodes, headers}
+import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpMethods, HttpRequest, StatusCode, StatusCodes, headers}
 import org.apache.pekko.http.scaladsl.server.directives.Credentials
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.matchers.should.Matchers
@@ -54,19 +54,20 @@ class AdminRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterA
     }
     override def meteringRepository: MetersRepository = new MetersRepository(null, PostgresProfile) {
       override def getMeteringPoint(tenant: String, participantId: String, meteringPoint: String): Future[Option[EegMeteringPoint]] =
-        Future.successful(m)
+        Future.successful(m.filter(r => r.tenant == tenant && r.participantId == participantId && r.meteringPoint == meteringPoint))
     }
   }
 
-  private def post(dao: Dao, uri: String, body: String): HttpResponse = {
-    val port = Await.result(Http().newServerAt("127.0.0.1", 0).bind(new AdminRoutes(dao, superuser, admin).route), 10.seconds)
-      .localAddress.getPort
-    Await.result(Http().singleRequest(HttpRequest(HttpMethods.POST, s"http://127.0.0.1:$port$uri",
-      List(headers.Authorization(OAuth2BearerToken("token"))), HttpEntity(ContentTypes.`application/json`, body))), 10.seconds)
+  /** Status and body of one call; the server is bound for this call only. */
+  private def post(dao: Dao, uri: String, body: String): (StatusCode, String) = {
+    val binding = Await.result(Http().newServerAt("127.0.0.1", 0).bind(new AdminRoutes(dao, superuser, admin).route), 10.seconds)
+    try {
+      val response = Await.result(Http().singleRequest(HttpRequest(HttpMethods.POST,
+        s"http://127.0.0.1:${binding.localAddress.getPort}$uri",
+        List(headers.Authorization(OAuth2BearerToken("token"))), HttpEntity(ContentTypes.`application/json`, body))), 10.seconds)
+      (response.status, Await.result(response.entity.toStrict(5.seconds), 10.seconds).data.utf8String)
+    } finally Await.result(binding.unbind(), 10.seconds)
   }
-
-  private def bodyOf(response: HttpResponse): String =
-    Await.result(response.entity.toStrict(5.seconds), 10.seconds).data.utf8String
 
   private val participantUpdate =
     """{"updateClass":"PARTICIPANT","tenant":"TE100002","participantId":"p-1","value":{"firstname":"Max"}}"""
@@ -75,31 +76,26 @@ class AdminRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAndAfterA
 
   "POST /admin/master/update/participant" should {
     "answer 200 with the participant and its meters" in {
-      val response = post(daos(Some(participant), None), "/admin/master/update/participant", participantUpdate)
-      response.status shouldBe StatusCodes.OK
-      val body = bodyOf(response)
+      val (status, body) = post(daos(Some(participant), None), "/admin/master/update/participant", participantUpdate)
+      status shouldBe StatusCodes.OK
       body should include("\"id\":\"p-1\"")
       body should include("AT0030000000000000000000000000001")
     }
 
     "answer 404 when the participant is not found" in {
-      val response = post(daos(None, None), "/admin/master/update/participant", participantUpdate)
-      response.status shouldBe StatusCodes.NotFound
-      response.discardEntityBytes()
+      post(daos(None, None), "/admin/master/update/participant", participantUpdate)._1 shouldBe StatusCodes.NotFound
     }
   }
 
   "POST /admin/master/update" should {
     "answer 200 with the metering point" in {
-      val response = post(daos(None, Some(meter)), "/admin/master/update", meterUpdate)
-      response.status shouldBe StatusCodes.OK
-      bodyOf(response) should include("\"meteringPoint\":\"AT0030000000000000000000000000001\"")
+      val (status, body) = post(daos(None, Some(meter)), "/admin/master/update", meterUpdate)
+      status shouldBe StatusCodes.OK
+      body should include("\"meteringPoint\":\"AT0030000000000000000000000000001\"")
     }
 
     "answer 404 when the metering point is not found" in {
-      val response = post(daos(None, None), "/admin/master/update", meterUpdate)
-      response.status shouldBe StatusCodes.NotFound
-      response.discardEntityBytes()
+      post(daos(None, None), "/admin/master/update", meterUpdate)._1 shouldBe StatusCodes.NotFound
     }
   }
 }
