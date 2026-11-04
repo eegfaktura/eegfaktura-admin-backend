@@ -4,6 +4,8 @@ import com.nimbusds.jose.{JWSAlgorithm, JWSHeader}
 import com.nimbusds.jose.crypto.{MACSigner, RSASSASigner}
 import com.nimbusds.jose.jwk.{JWKSet, RSAKey}
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator
+import com.nimbusds.jose.jwk.source.RemoteJWKSet
+import com.nimbusds.jose.util.DefaultResourceRetriever
 import com.nimbusds.jwt.{JWTClaimsSet, PlainJWT, SignedJWT}
 import com.sun.net.httpserver.HttpServer
 import org.apache.pekko.http.scaladsl.model.headers.OAuth2BearerToken
@@ -46,12 +48,9 @@ class KeycloakJwtAuthenticatorSpec extends AnyWordSpecLike with Matchers with Be
       exchange.close()
     })
     server.start()
-    authenticator =
-      new KeycloakJwtAuthenticator(s"http://127.0.0.1:${server.getAddress.getPort}/jwks", issuer, audience)
-    // RemoteJWKSet fetches with 500 ms timeouts (not configurable from outside): warm the server and
-    // the key cache, so a slow first request on a cold runner does not fail a test.
-    val warm = (1 to 5).iterator.map(_ => authenticate(goodToken())).find(_.isDefined).flatten
-    assert(warm.isDefined, "the known-good token is not accepted - JWKS not reachable?")
+    // 5 s instead of the default 500 ms fetch timeouts: a slow first request on a cold runner must not fail a test
+    authenticator = new KeycloakJwtAuthenticator(s"http://127.0.0.1:${server.getAddress.getPort}/jwks", issuer, audience,
+      Some(new DefaultResourceRetriever(5000, 5000, RemoteJWKSet.DEFAULT_HTTP_SIZE_LIMIT)))
   }
 
   override def afterAll(): Unit = if (server != null) server.stop(0)

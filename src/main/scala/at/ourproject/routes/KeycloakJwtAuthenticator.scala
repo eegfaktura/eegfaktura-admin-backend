@@ -10,6 +10,7 @@ import com.nimbusds.jose.proc.{BadJOSEException, JWSVerificationKeySelector, Sec
 import com.nimbusds.jwt.proc.DefaultJWTProcessor
 import com.nimbusds.jwt.SignedJWT
 import com.nimbusds.jwt.JWTClaimsSet
+import com.nimbusds.jose.util.ResourceRetriever
 import org.slf4j.LoggerFactory
 
 import java.net.URL
@@ -27,13 +28,15 @@ object KeycloakJwtAuthenticator {
     }
 }
 
-class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expectedAudience: String)(implicit ec: ExecutionContext) {
+// jwksRetriever: how the JWKS is fetched; None is the library's default (500 ms timeouts), tests give longer ones.
+class KeycloakJwtAuthenticator(jwksUrl: String, expectedIssuer: String, expectedAudience: String,
+                               jwksRetriever: Option[ResourceRetriever] = None)(implicit ec: ExecutionContext) {
 
   private val log = LoggerFactory.getLogger(getClass)
 
   private val jwkSetUrl = new URL(jwksUrl)
   // RemoteJWKSet caches keys and handles refreshes (key rotation)
-  private val jwkSource = new RemoteJWKSet[SecurityContext](jwkSetUrl)
+  private val jwkSource = new RemoteJWKSet[SecurityContext](jwkSetUrl, jwksRetriever.orNull)
   private val jwtProcessor = {
     val p = new DefaultJWTProcessor[SecurityContext]()
     val keySelector = new JWSVerificationKeySelector[SecurityContext](JWSAlgorithm.RS256, jwkSource)
