@@ -128,9 +128,8 @@ object RegisterService {
 
   /** New communities are registered with dynamic allocation only (E6, platform#229); existing ones keep theirs. */
   val StaticAllocationRefused: String = "Neue Gemeinschaften können nur mit dynamischer Aufteilung registriert werden."
-  val UnknownGridArea: String = "Gemeinschaftstyp unbekannt"
 
-  /** The gRPC value of each community type; a type without an entry is refused, never sent as REGIONAL. */
+  /** The gRPC value of each community type, without a default (never REGIONAL for an unknown type). */
   val GrpcGridArea: Map[GridArea, RegisterEegRequest.GRID_AREA] = Map(
     GridAreaType.LOCAL -> RegisterEegRequest.GRID_AREA.LOCAL,
     GridAreaType.REGIONAL -> RegisterEegRequest.GRID_AREA.REGIONAL,
@@ -214,9 +213,6 @@ object RegisterService {
           case RegisterEeg(eeg, _, replyTo) if eeg.grid.allocation == GridAllocationType.STATIC =>
             replyTo ! EegRegisterError(400, StaticAllocationRefused)
 
-          case RegisterEeg(eeg, _, replyTo) if !GrpcGridArea.contains(eeg.grid.area) =>
-            replyTo ! EegRegisterError(400, UnknownGridArea)
-
           // checked before the community is registered: afterwards it could get no login
           case RegisterEeg(eeg, _, replyTo) if registrationAccounts(eeg).isDefined && validTenant(eeg.tenant).isEmpty =>
             replyTo ! EegRegisterError(400, "Tenant ungültig")
@@ -238,10 +234,9 @@ object RegisterService {
                 case EegSettlementType.QUARTER => RegisterEegRequest.EEG_SETTELMENT.QUARTER
                 case EegSettlementType.MONTHLY => RegisterEegRequest.EEG_SETTELMENT.MONTHLY
                 case _ => RegisterEegRequest.EEG_SETTELMENT.ANNUAL
-              }), eeg.grid.id, eeg.grid.name, GrpcGridArea(eeg.grid.area), (eeg.grid.allocation match {
-                case GridAllocationType.DYNAMIC => RegisterEegRequest.GRID_ALLOCATION.DYNAMIC
-                case _ => RegisterEegRequest.GRID_ALLOCATION.STATIC
-              }), s"${eeg.user.firstname} ${eeg.user.lastname}", eeg.contact.street, eeg.contact.streetNumber, eeg.contact.city, eeg.contact.zip,
+              }), eeg.grid.id, eeg.grid.name, GrpcGridArea(eeg.grid.area),
+              // STATIC is refused above (E6)
+              RegisterEegRequest.GRID_ALLOCATION.DYNAMIC, s"${eeg.user.firstname} ${eeg.user.lastname}", eeg.contact.street, eeg.contact.streetNumber, eeg.contact.city, eeg.contact.zip,
               eeg.user.email, eeg.contact.web, eeg.contact.phone, eeg.online,
             )
 

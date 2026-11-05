@@ -11,8 +11,8 @@ this changelog highlights the changes relevant for overview and operations.
 ### Added (community types P2P and EVA, vfeeg-development/eegfaktura-platform#229)
 - **Registration of P2P (peer-to-peer) and EVA (Eigenversorgung) communities**: `POST /eeg/register` accepts `grid.area`
   `P2P` and `EVA` and passes them to the backend over gRPC. Contract change: `register.proto` `GRID_AREA` gets `P2P = 4`
-  and `EVA = 5` appended, the same in the backend's copy. Deploy the backend first, otherwise it stores the number. A
-  type without a gRPC value is refused with 400 instead of being sent as `REGIONAL`.
+  and `EVA = 5` appended, the same in the backend's copy. Deploy the backend first, otherwise it stores the number. The
+  mapping has no default any more (it sent an unknown type as `REGIONAL`).
 - **A new community is registered with dynamic allocation only** (E6): `POST /eeg/register` with `grid.allocation`
   `STATIC` answers 400 „Neue Gemeinschaften können nur mit dynamischer Aufteilung registriert werden.“ and registers
   nothing. Existing communities are not affected: `POST /master/update/eeg` is unchanged and still forwards its values to

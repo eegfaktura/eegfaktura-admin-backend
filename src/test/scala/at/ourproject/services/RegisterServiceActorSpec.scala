@@ -326,6 +326,21 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
         PontonStub.registered.size shouldBe 0
       } finally EegStub.status = 201
     }
+
+    // backend#147 answers a community type it does not know with reply status 400
+    "answer with an error when the backend refuses the registration with 400" in {
+      PontonStub.registered.clear()
+      EegStub.status = 400
+      try {
+        val service = testKit.spawn(RegisterService(newUserKeycloak))
+        val probe = testKit.createTestProbe[Command]()
+
+        service ! RegisterEeg(eeg(online = true, PontonCommType.KEP), Nil, probe.ref)
+
+        probe.expectMessage(10.seconds, EegRegisterError(501, "Creating Tenant failed!"))
+        PontonStub.registered.size shouldBe 0
+      } finally EegStub.status = 201
+    }
   }
 
   "RegisterEeg with a list and an invalid tenant" should {

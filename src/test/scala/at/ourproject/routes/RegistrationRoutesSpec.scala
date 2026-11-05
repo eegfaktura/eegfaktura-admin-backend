@@ -38,14 +38,20 @@ class RegistrationRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAn
     case _ => Future.successful(None)
   }
 
-  private val port = Await.result(Http().newServerAt("127.0.0.1", 0)
-    .bind(new RegistrationRoutes(superuser, testKit.spawn(refusingNode)).route), 10.seconds).localAddress.getPort
+  private val binding = Await.result(Http().newServerAt("127.0.0.1", 0)
+    .bind(new RegistrationRoutes(superuser, testKit.spawn(refusingNode)).route), 10.seconds)
+  private val port = binding.localAddress.getPort
 
   // the real actor: it refuses a static allocation before it calls the backend or Keycloak
-  private val servicePort = Await.result(Http().newServerAt("127.0.0.1", 0)
-    .bind(new RegistrationRoutes(superuser, testKit.spawn(RegisterService(null))).route), 10.seconds).localAddress.getPort
+  private val serviceBinding = Await.result(Http().newServerAt("127.0.0.1", 0)
+    .bind(new RegistrationRoutes(superuser, testKit.spawn(RegisterService(null))).route), 10.seconds)
+  private val servicePort = serviceBinding.localAddress.getPort
 
-  override def afterAll(): Unit = testKit.shutdownTestKit()
+  override def afterAll(): Unit = {
+    Await.result(binding.unbind(), 10.seconds)
+    Await.result(serviceBinding.unbind(), 10.seconds)
+    testKit.shutdownTestKit()
+  }
 
   private val eeg =
     """{"tenant":"te100002","rcNumber":"te100002","communityId":"UNITTEST","name":"UNIT TEST","description":"","online":false,
