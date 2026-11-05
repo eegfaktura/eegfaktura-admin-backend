@@ -28,8 +28,9 @@ class GrpcClientRoundTripSpec extends AnyWordSpecLike with Matchers with BeforeA
   override def afterAll(): Unit = system.terminate()
 
   private val service = new RegisterEegService {
+    // answers with the number of the community type it received, so the client sees what went over the wire
     override def register(in: RegisterEegRequest): Future[RegisteredEegReply] =
-      Future.successful(RegisteredEegReply())
+      Future.successful(RegisteredEegReply(status = in.area.value))
     override def eegExists(in: EegRequest): Future[EegResponse] =
       Future.successful(EegResponse(exists = in.rcNumber == "RC100001"))
   }
@@ -43,6 +44,9 @@ class GrpcClientRoundTripSpec extends AnyWordSpecLike with Matchers with BeforeA
       try {
         Await.result(client.eegExists(EegRequest("RC100001")), 10.seconds).exists shouldBe true
         Await.result(client.eegExists(EegRequest("RC100002")), 10.seconds).exists shouldBe false
+        // platform#229: P2P and EVA are appended to GRID_AREA (4, 5); the backend's copy has the same numbers
+        Await.result(client.register(RegisterEegRequest(area = RegisterEegRequest.GRID_AREA.P2P)), 10.seconds).status shouldBe 4
+        Await.result(client.register(RegisterEegRequest(area = RegisterEegRequest.GRID_AREA.EVA)), 10.seconds).status shouldBe 5
       } finally {
         Await.result(client.close(), 10.seconds)
         Await.result(binding.unbind(), 10.seconds)

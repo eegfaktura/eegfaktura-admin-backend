@@ -41,6 +41,10 @@ class RegistrationRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAn
   private val port = Await.result(Http().newServerAt("127.0.0.1", 0)
     .bind(new RegistrationRoutes(superuser, testKit.spawn(refusingNode)).route), 10.seconds).localAddress.getPort
 
+  // the real actor: it refuses a static allocation before it calls the backend or Keycloak
+  private val servicePort = Await.result(Http().newServerAt("127.0.0.1", 0)
+    .bind(new RegistrationRoutes(superuser, testKit.spawn(RegisterService(null))).route), 10.seconds).localAddress.getPort
+
   override def afterAll(): Unit = testKit.shutdownTestKit()
 
   private val eeg =
@@ -61,6 +65,18 @@ class RegistrationRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAn
       val body = Await.result(response.entity.toStrict(5.seconds), 10.seconds).data.utf8String
       body should include(""""code":409""")
       body should include(refusal.message)
+    }
+
+    "answer 400 with a clear message for a new EEG with static allocation (E6, platform#229)" in {
+      val static = eeg.replace("\"allocation\":\"DYNAMIC\"", "\"allocation\":\"STATIC\"")
+      static should not be eeg
+      val response = Await.result(Http().singleRequest(HttpRequest(HttpMethods.POST, s"http://127.0.0.1:$servicePort/eeg/register",
+        List(headers.Authorization(OAuth2BearerToken("token"))), HttpEntity(ContentTypes.`application/json`, static))), 10.seconds)
+
+      response.status shouldBe StatusCodes.BadRequest
+      val body = Await.result(response.entity.toStrict(5.seconds), 10.seconds).data.utf8String
+      body should include(""""code":400""")
+      body should include(RegisterService.StaticAllocationRefused)
     }
   }
 }
