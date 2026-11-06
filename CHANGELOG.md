@@ -8,6 +8,8 @@ this changelog highlights the changes relevant for overview and operations.
 
 ## [Unreleased]
 
+## [1.3.0] – 2026-11-06
+
 ### Added (community types P2P and EVA, vfeeg-development/eegfaktura-platform#229)
 - **Registration of P2P (peer-to-peer) and EVA (Eigenversorgung) communities**: `POST /eeg/register` accepts `grid.area`
   `P2P` and `EVA` and passes them to the backend over gRPC. Contract change: `register.proto` `GRID_AREA` gets `P2P = 4`
