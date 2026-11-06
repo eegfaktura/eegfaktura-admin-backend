@@ -38,10 +38,20 @@ class RegistrationRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAn
     case _ => Future.successful(None)
   }
 
-  private val port = Await.result(Http().newServerAt("127.0.0.1", 0)
-    .bind(new RegistrationRoutes(superuser, testKit.spawn(refusingNode)).route), 10.seconds).localAddress.getPort
+  private val binding = Await.result(Http().newServerAt("127.0.0.1", 0)
+    .bind(new RegistrationRoutes(superuser, testKit.spawn(refusingNode)).route), 10.seconds)
+  private val port = binding.localAddress.getPort
 
-  override def afterAll(): Unit = testKit.shutdownTestKit()
+  // the real actor: it refuses a static allocation before it calls the backend or Keycloak
+  private val serviceBinding = Await.result(Http().newServerAt("127.0.0.1", 0)
+    .bind(new RegistrationRoutes(superuser, testKit.spawn(RegisterService(null))).route), 10.seconds)
+  private val servicePort = serviceBinding.localAddress.getPort
+
+  override def afterAll(): Unit = {
+    Await.result(binding.unbind(), 10.seconds)
+    Await.result(serviceBinding.unbind(), 10.seconds)
+    testKit.shutdownTestKit()
+  }
 
   private val eeg =
     """{"tenant":"te100002","rcNumber":"te100002","communityId":"UNITTEST","name":"UNIT TEST","description":"","online":false,
@@ -61,6 +71,18 @@ class RegistrationRoutesSpec extends AnyWordSpecLike with Matchers with BeforeAn
       val body = Await.result(response.entity.toStrict(5.seconds), 10.seconds).data.utf8String
       body should include(""""code":409""")
       body should include(refusal.message)
+    }
+
+    "answer 400 with a clear message for a new EEG with static allocation (E6, platform#229)" in {
+      val static = eeg.replace("\"allocation\":\"DYNAMIC\"", "\"allocation\":\"STATIC\"")
+      static should not be eeg
+      val response = Await.result(Http().singleRequest(HttpRequest(HttpMethods.POST, s"http://127.0.0.1:$servicePort/eeg/register",
+        List(headers.Authorization(OAuth2BearerToken("token"))), HttpEntity(ContentTypes.`application/json`, static))), 10.seconds)
+
+      response.status shouldBe StatusCodes.BadRequest
+      val body = Await.result(response.entity.toStrict(5.seconds), 10.seconds).data.utf8String
+      body should include(""""code":400""")
+      body should include(RegisterService.StaticAllocationRefused)
     }
   }
 }

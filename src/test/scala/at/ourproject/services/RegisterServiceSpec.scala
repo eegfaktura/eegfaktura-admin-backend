@@ -86,6 +86,12 @@ class RegisterServiceSpec extends AnyWordSpecLike with Matchers with ScalaFuture
       decode[Eeg](registerBody.replace("\"verein\"", "\"club\"")).isLeft shouldBe true
     }
 
+    "decode the community types P2P and EVA and reject an unknown type (platform#229)" in {
+      decode[Eeg](registerBody.replace("\"LOCAL\"", "\"P2P\"")).map(_.grid.area) shouldBe Right(GridAreaType.P2P)
+      decode[Eeg](registerBody.replace("\"LOCAL\"", "\"EVA\"")).map(_.grid.area) shouldBe Right(GridAreaType.EVA)
+      decode[Eeg](registerBody.replace("\"LOCAL\"", "\"NAHE\"")).isLeft shouldBe true
+    }
+
     "reject a body without the community admin (user)" in {
       val withoutUser = io.circe.parser.parse(registerBody).map(_.mapObject(_.remove("user"))).toOption.get
       withoutUser.as[Eeg].isLeft shouldBe true
@@ -127,6 +133,14 @@ class RegisterServiceSpec extends AnyWordSpecLike with Matchers with ScalaFuture
       val client = new RecordingPontonClient(200)
       registerPonton(onlineEeg(PontonCommType.MAIL), client).futureValue shouldBe true
       client.requests.map(_.pontonCommType) shouldBe List("KEP")
+    }
+  }
+
+  "GrpcGridArea" should {
+    // the numbers are the contract with the backend's copy of register.proto
+    "map every community type to its gRPC value, P2P = 4 and EVA = 5" in {
+      GridAreaType.values.toList.map(a => a.toString -> GrpcGridArea.get(a).map(_.value)) shouldBe List(
+        "LOCAL" -> Some(1), "REGIONAL" -> Some(0), "GEA" -> Some(3), "BEG" -> Some(2), "P2P" -> Some(4), "EVA" -> Some(5))
     }
   }
 

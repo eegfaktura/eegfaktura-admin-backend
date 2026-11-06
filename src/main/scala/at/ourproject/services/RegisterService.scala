@@ -21,7 +21,7 @@ object GridAreaType extends Enumeration {
   implicit val decoder: Decoder[Value] = Decoder.decodeEnumeration(this)
   implicit val encoder: Encoder[Value] = Encoder.encodeEnumeration(this)
 
-  val LOCAL, REGIONAL, GEA, BEG = Value
+  val LOCAL, REGIONAL, GEA, BEG, P2P, EVA = Value
 }
 
 object GridAllocationType extends Enumeration {
@@ -126,6 +126,18 @@ object RegisterService {
   def eegAlreadyRegistered(tenant: String, rcNumber: String): String =
     s"EEG ist bereits registriert (Tenant ${tenant.toUpperCase()}, RC-Nummer ${rcNumber.toUpperCase()}). Es wurde nichts geändert; fehlende Logins oder Ponton über „EEG Accounts“ bzw. „Ponton Verbindung“ ergänzen."
 
+  /** New communities are registered with dynamic allocation only (E6, platform#229); existing ones keep theirs. */
+  val StaticAllocationRefused: String = "Neue Gemeinschaften können nur mit dynamischer Aufteilung registriert werden."
+
+  /** The gRPC value of each community type, without a default (never REGIONAL for an unknown type). */
+  val GrpcGridArea: Map[GridArea, RegisterEegRequest.GRID_AREA] = Map(
+    GridAreaType.LOCAL -> RegisterEegRequest.GRID_AREA.LOCAL,
+    GridAreaType.REGIONAL -> RegisterEegRequest.GRID_AREA.REGIONAL,
+    GridAreaType.BEG -> RegisterEegRequest.GRID_AREA.BEG,
+    GridAreaType.GEA -> RegisterEegRequest.GRID_AREA.GEA,
+    GridAreaType.P2P -> RegisterEegRequest.GRID_AREA.P2P,
+    GridAreaType.EVA -> RegisterEegRequest.GRID_AREA.EVA)
+
   /** Groups of every account of a community: all accounts have the same rights (platform#166). */
   val AccountGroups: List[String] = List("EEG_ADMIN", "EEG_OWNER")
 
@@ -198,6 +210,9 @@ object RegisterService {
           case RegisterEeg(eeg, _, replyTo) if eeg.online && eeg.pontonInfo.pontonCommType == PontonCommType.MAIL =>
             replyTo ! EegRegisterError(400, MailNotSupported)
 
+          case RegisterEeg(eeg, _, replyTo) if eeg.grid.allocation == GridAllocationType.STATIC =>
+            replyTo ! EegRegisterError(400, StaticAllocationRefused)
+
           // checked before the community is registered: afterwards it could get no login
           case RegisterEeg(eeg, _, replyTo) if registrationAccounts(eeg).isDefined && validTenant(eeg.tenant).isEmpty =>
             replyTo ! EegRegisterError(400, "Tenant ungültig")
@@ -219,15 +234,9 @@ object RegisterService {
                 case EegSettlementType.QUARTER => RegisterEegRequest.EEG_SETTELMENT.QUARTER
                 case EegSettlementType.MONTHLY => RegisterEegRequest.EEG_SETTELMENT.MONTHLY
                 case _ => RegisterEegRequest.EEG_SETTELMENT.ANNUAL
-              }), eeg.grid.id, eeg.grid.name, (eeg.grid.area match {
-                case GridAreaType.LOCAL => RegisterEegRequest.GRID_AREA.LOCAL
-                case GridAreaType.BEG => RegisterEegRequest.GRID_AREA.BEG
-                case GridAreaType.GEA => RegisterEegRequest.GRID_AREA.GEA
-                case _ => RegisterEegRequest.GRID_AREA.REGIONAL
-              }), (eeg.grid.allocation match {
-                case GridAllocationType.DYNAMIC => RegisterEegRequest.GRID_ALLOCATION.DYNAMIC
-                case _ => RegisterEegRequest.GRID_ALLOCATION.STATIC
-              }), s"${eeg.user.firstname} ${eeg.user.lastname}", eeg.contact.street, eeg.contact.streetNumber, eeg.contact.city, eeg.contact.zip,
+              }), eeg.grid.id, eeg.grid.name, GrpcGridArea(eeg.grid.area),
+              // STATIC is refused above (E6)
+              RegisterEegRequest.GRID_ALLOCATION.DYNAMIC, s"${eeg.user.firstname} ${eeg.user.lastname}", eeg.contact.street, eeg.contact.streetNumber, eeg.contact.city, eeg.contact.zip,
               eeg.user.email, eeg.contact.web, eeg.contact.phone, eeg.online,
             )
 

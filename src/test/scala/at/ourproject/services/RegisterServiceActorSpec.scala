@@ -170,6 +170,33 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
       PontonStub.registered.size shouldBe 0
     }
 
+    "reject a new EEG with static allocation before registering anything (E6, platform#229)" in {
+      EegStub.registered.clear()
+      val service = testKit.spawn(RegisterService(newUserKeycloak))
+      val probe = testKit.createTestProbe[Command]()
+      val static = eeg(online = false, PontonCommType.NONE)
+
+      service ! RegisterEeg(static.copy(grid = static.grid.copy(allocation = GridAllocationType.STATIC)), Nil, probe.ref)
+
+      probe.expectMessage(10.seconds, EegRegisterError(400, StaticAllocationRefused))
+      EegStub.registered.size shouldBe 0
+    }
+
+    "pass the community types P2P and EVA to the backend as their gRPC values" in {
+      EegStub.registered.clear()
+      val service = testKit.spawn(RegisterService(newUserKeycloak))
+      val probe = testKit.createTestProbe[Command]()
+      val base = eeg(online = false, PontonCommType.NONE)
+
+      service ! RegisterEeg(base.copy(grid = base.grid.copy(area = GridAreaType.P2P)), Nil, probe.ref)
+      probe.expectMessage(10.seconds, EegRegistered(201, ""))
+      service ! RegisterEeg(base.copy(grid = base.grid.copy(area = GridAreaType.EVA)), Nil, probe.ref)
+      probe.expectMessage(10.seconds, EegRegistered(201, ""))
+
+      EegStub.registered.toArray(Array.empty[RegisterEegRequest]).map(_.area).toList shouldBe
+        List(RegisterEegRequest.GRID_AREA.P2P, RegisterEegRequest.GRID_AREA.EVA)
+    }
+
     "answer 510 and create no user when Keycloak cannot tell whether the user exists" in {
       val created = new java.util.concurrent.atomic.AtomicBoolean(false)
       val kc = new KeycloakClient(null, null) {
@@ -289,6 +316,21 @@ class RegisterServiceActorSpec extends AnyWordSpecLike with Matchers with Before
     "not call Ponton" in {
       PontonStub.registered.clear()
       EegStub.status = 500
+      try {
+        val service = testKit.spawn(RegisterService(newUserKeycloak))
+        val probe = testKit.createTestProbe[Command]()
+
+        service ! RegisterEeg(eeg(online = true, PontonCommType.KEP), Nil, probe.ref)
+
+        probe.expectMessage(10.seconds, EegRegisterError(501, "Creating Tenant failed!"))
+        PontonStub.registered.size shouldBe 0
+      } finally EegStub.status = 201
+    }
+
+    // backend#147 answers a community type it does not know with reply status 400
+    "answer with an error when the backend refuses the registration with 400" in {
+      PontonStub.registered.clear()
+      EegStub.status = 400
       try {
         val service = testKit.spawn(RegisterService(newUserKeycloak))
         val probe = testKit.createTestProbe[Command]()
